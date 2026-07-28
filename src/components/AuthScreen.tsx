@@ -4,7 +4,7 @@ import { Mail, Lock, Chrome, Loader2, AlertCircle } from 'lucide-react';
 import logoSrc from '/logo.png';
 
 export const AuthScreen: FC = () => {
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, register, loginWithGoogle, loginWithGoogleRedirect } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -84,6 +84,13 @@ export const AuthScreen: FC = () => {
           className="w-full py-2 bg-[#161B22] hover:bg-[#21262D] disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded border border-[#30363D] transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed">
           <Chrome size={14} /><span>Sign in with Google</span>
         </button>
+
+        <p className="text-center">
+          <button onClick={loginWithGoogleRedirect}
+            className="text-[10px] font-mono text-[#8B949E] hover:text-[#E3B341] transition-colors cursor-pointer underline underline-offset-2 decoration-[#30363D]">
+            Popup not working? Use redirect instead
+          </button>
+        </p>
 
         <p className="text-center text-[10px] font-mono text-[#8B949E]">
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}

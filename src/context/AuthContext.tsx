@@ -1,5 +1,5 @@
 ﻿import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { initFirebase, loginEmail, registerEmail, loginGoogle, logoutUser, onAuthChange } from '../lib/firebase';
+import { initFirebase, loginEmail, registerEmail, loginGoogle, loginGoogleRedirect, handleRedirectResult, logoutUser, onAuthChange } from '../lib/firebase';
 import type { User } from 'firebase/auth';
 
 interface AuthState {
@@ -8,6 +8,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
+  loginWithGoogleRedirect: () => void;
   logout: () => Promise<void>;
 }
 
@@ -18,13 +19,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const a = initFirebase();
-    if (!a) return;
-    const unsub = onAuthChange((u) => {
-      setUser(u);
-      setLoading(false);
+    initFirebase().then(() => {
+      handleRedirectResult().then((u) => {
+        if (u) setUser(u);
+      });
+      const unsub = onAuthChange((u) => {
+        setUser(u);
+        setLoading(false);
+      });
+      return () => unsub();
     });
-    return () => unsub();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -39,12 +43,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loginGoogle();
   };
 
+  const loginWithGoogleRedirect = () => {
+    loginGoogleRedirect();
+  };
+
   const logout = async () => {
     await logoutUser();
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, loginWithGoogleRedirect, logout }}>
       {children}
     </AuthContext.Provider>
   );

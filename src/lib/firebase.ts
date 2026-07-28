@@ -4,7 +4,11 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
+  setPersistence,
+  browserLocalPersistence,
   signOut,
   onAuthStateChanged,
   type User,
@@ -23,10 +27,11 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 
-export function initFirebase(): Auth {
+export async function initFirebase(): Promise<Auth> {
   if (!auth) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
+    await setPersistence(auth, browserLocalPersistence);
   }
   return auth;
 }
@@ -54,6 +59,19 @@ export async function loginGoogle(): Promise<User> {
   provider.setCustomParameters({ prompt: 'select_account' });
   const cred = await signInWithPopup(auth, provider);
   return cred.user;
+}
+
+export function loginGoogleRedirect(): void {
+  const auth = getFirebaseAuth();
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  signInWithRedirect(auth, provider);
+}
+
+export async function handleRedirectResult(): Promise<User | null> {
+  const auth = getFirebaseAuth();
+  const result = await getRedirectResult(auth);
+  return result?.user ?? null;
 }
 
 export async function logoutUser(): Promise<void> {
