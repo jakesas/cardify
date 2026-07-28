@@ -14,7 +14,7 @@ import { Sun, Moon, Database, Activity, LayoutGrid, Sparkles, RefreshCcw, X, Wan
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
-import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, deleteCard, submitReview, getAllReviews } from './db/queries';
+import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, deleteCard, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
 import { getDb, setDbUser } from './db/client';
 import { getPremiumState, activatePremium, type PremiumState } from './utils/premium';
 
@@ -45,7 +45,17 @@ function AppInner() {
     async function init() {
       try {
         setDbUser(uid);
-        
+
+        // One-time migration: wipe old seed data for existing users
+        const schema = await getSetting('db_schema');
+        if (schema !== '2') {
+          const db = await getDb();
+          await db.execute('DELETE FROM reviews');
+          await db.execute('DELETE FROM cards');
+          await db.execute('DELETE FROM decks');
+          await setSetting('db_schema', '2');
+        }
+
         await loadAllData();
         const ps = await getPremiumState();
         setPremiumState(ps);
