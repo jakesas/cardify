@@ -88,7 +88,7 @@ export const AuthScreen: FC = () => {
         <p className="text-center">
           <button onClick={loginWithGoogleRedirect}
             className="text-[10px] font-mono text-[#8B949E] hover:text-[#E3B341] transition-colors cursor-pointer underline underline-offset-2 decoration-[#30363D]">
-            Popup not working? Use redirect instead
+            Or sign in with browser redirect
           </button>
         </p>
 

@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+﻿import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { initFirebase, loginEmail, registerEmail, loginGoogle, loginGoogleRedirect, handleRedirectResult, logoutUser, onAuthChange } from '../lib/firebase';
 import type { User } from 'firebase/auth';
 
@@ -39,8 +39,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await registerEmail(email, password);
   };
 
+  const autoFallback = useRef(false);
+
   const loginWithGoogle = async () => {
-    await loginGoogle();
+    if (autoFallback.current) {
+      loginGoogleRedirect();
+      return;
+    }
+    try {
+      await loginGoogle();
+    } catch {
+      autoFallback.current = true;
+      loginGoogleRedirect();
+    }
   };
 
   const loginWithGoogleRedirect = () => {
