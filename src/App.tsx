@@ -275,35 +275,37 @@ function AppInner() {
 
       <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col min-h-screen">
         <header className="flex flex-col sm:grid sm:grid-cols-3 sm:items-center gap-1 pb-1 sm:pb-2 mb-2 sm:mb-3 border-b border-[#2D333B]">
-          {/* Col 1: Logo (left) + mobile badges (right) */}
+          {/* Col 1: Logo + Timer + Due (left) */}
           <div className="flex items-center justify-between w-full sm:justify-start">
+            <div className="flex items-center space-x-1.5 sm:space-x-2 min-w-0">
               <div className="flex items-center space-x-1.5 cursor-pointer flex-shrink-0 min-w-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
-              <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#E3B341] flex-shrink-0 shadow-md shadow-[#E3B341]/10 overflow-hidden">
-                <img src={logoSrc} alt="CardifyA.I" className="w-full h-full object-cover" />
-              </div>
-              <div className="text-left min-w-0">
-                <div className="flex items-center gap-1">
-                  <h1 className="text-[10px] sm:text-sm font-bold text-white">CardifyA.I</h1>
-                  {premiumState?.status === 'active' && (
-                    <span className="px-1 py-0.5 rounded bg-[#3FB950]/20 text-[#3FB950] text-[7px] sm:text-[8px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
-                  )}
-                  {premiumState?.status === 'trial' && (
-                    <span className="px-1 py-0.5 rounded bg-[#E3B341]/20 text-[#E3B341] text-[7px] sm:text-[8px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
-                  )}
+                <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#E3B341] flex-shrink-0 shadow-md shadow-[#E3B341]/10 overflow-hidden">
+                  <img src={logoSrc} alt="CardifyA.I" className="w-full h-full object-cover" />
                 </div>
-
+                <div className="text-left min-w-0">
+                  <div className="flex items-center gap-1">
+                    <h1 className="text-[10px] sm:text-sm font-bold text-white">CardifyA.I</h1>
+                    {premiumState?.status === 'active' && (
+                      <span className="px-1 py-0.5 rounded bg-[#3FB950]/20 text-[#3FB950] text-[7px] sm:text-[8px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
+                    )}
+                    {premiumState?.status === 'trial' && (
+                      <span className="px-1 py-0.5 rounded bg-[#E3B341]/20 text-[#E3B341] text-[7px] sm:text-[8px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-
-            {/* Mobile: timer + due badge + theme toggle (right side) */}
-            <div className="flex sm:hidden items-center space-x-1">
               <HeaderTimer />
               {totalDueTodayCount > 0 && (
-                <div className="flex items-center space-x-1 px-1.5 py-0.5 rounded border border-[#30363D] bg-[#161B22] text-[#E3B341] font-mono text-[8px] font-bold" title="Reviews due today">
+                <div className="flex items-center space-x-1 px-1.5 py-0.5 rounded border border-[#30363D] bg-[#161B22] text-[#E3B341] font-mono text-[8px] sm:text-[10px] font-bold" title="Reviews due today">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#E3B341]"></span>
-                  <span>{totalDueTodayCount}</span>
+                  <span className="sm:hidden">{totalDueTodayCount}</span>
+                  <span className="hidden sm:inline">{totalDueTodayCount} DUE</span>
                 </div>
               )}
+            </div>
+
+            {/* Mobile: theme + profile + logout (right side) */}
+            <div className="flex sm:hidden items-center space-x-1">
               {premiumState?.status === 'trial' && (
                 <button
                   onClick={() => setShowUpgrade(true)}
@@ -426,18 +428,8 @@ function AppInner() {
             </nav>
           </div>
 
-          {/* Col 3: Timer + due badge + theme toggle (desktop only) */}
+          {/* Col 3: theme toggle + profile + logout (desktop only) */}
           <div className="hidden sm:flex items-center justify-end space-x-1.5 sm:space-x-2">
-            <HeaderTimer />
-
-            {totalDueTodayCount > 0 && (
-              <div className="flex items-center space-x-1 px-1.5 sm:px-2 py-0.5 rounded border border-[#30363D] bg-[#161B22] text-[#E3B341] font-mono text-[8px] sm:text-[10px] font-bold" title="Reviews due today">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#E3B341]"></span>
-                <span className="hidden sm:inline">{totalDueTodayCount} DUE</span>
-                <span className="sm:hidden">{totalDueTodayCount}</span>
-              </div>
-            )}
-
             {premiumState?.status === 'trial' && (
               <button
                 onClick={() => setShowUpgrade(true)}
@@ -448,7 +440,6 @@ function AppInner() {
                 <span className="hidden sm:inline">Upgrade</span>
               </button>
             )}
-
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="p-1.5 bg-[#161B22] hover:bg-[#21262D] rounded border border-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer"
