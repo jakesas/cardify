@@ -1,0 +1,401 @@
+import Groq from 'groq-sdk';
+
+export interface GeneratedCard {
+  front: string;
+  back: string;
+  tag: string;
+  codeSnippet?: { code: string; language: string };
+}
+
+export interface GenerationResult {
+  cards: GeneratedCard[];
+  title?: string;
+}
+
+export interface GenerationResponse extends GenerationResult {
+  /** Rate-limit headers from the API response (browser context — may be undefined) */
+  rateLimitRemaining?: number;
+  rateLimitResetMs?: number;
+  /** Estimated total tokens this call consumed (input + output) */
+  estimatedTokensUsed: number;
+}
+
+export function createGroqClient(apiKey: string, baseUrl?: string): Groq {
+  return new Groq({
+    apiKey,
+    ...(baseUrl ? { baseURL: baseUrl } : {}),
+    dangerouslyAllowBrowser: true,
+    timeout: 600000, // 10 minutes — each card takes ~10s, 30 cards = 5min, with buffer
+  });
+}
+
+/**
+ * Returns the correct AI config based on the runtime environment.
+ *
+ * - **Development** (`VITE_GROQ_API_KEY` set) → direct Groq SDK with the env key.
+ * - **Production** (no env key, deployed to Vercel) → proxy through /api/groq
+ *   so the real key stays server-side inside the serverless function.
+ * - **Neither** → returns `null` (AI features disabled).
+ */
+export function getAiConfig(): { apiKey: string; baseUrl?: string } | null {
+  const envKey = import.meta.env.VITE_GROQ_API_KEY || '';
+  if (envKey) return { apiKey: envKey };
+  // Production: proxy through the Vercel serverless function at /api/groq
+  if (import.meta.env.PROD) return { apiKey: 'placeholder', baseUrl: '/api/groq' };
+  return null;
+}
+
+/**
+ * Extracts subject-specific tags from the material text. Returns an array of the
+ * most relevant topic keywords found in the text, or a default generic tag.
+ */
+function extractSubjectTags(text: string): string[] {
+  // Collect capitalized multi-word phrases that look like topic headings
+  const phrasePattern = /^([A-Z][A-Za-z\s\-&,/]+?)(?:\s*[:–—-]|\s*$)/gm;
+  const matches = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = phrasePattern.exec(text)) !== null) {
+    const phrase = m[1].trim();
+    if (phrase.length > 3 && phrase.length < 60 && !phrase.match(/^(The|This|These|Those|Our|Your|How|What|Why|When|Where|Which) /)) {
+      matches.add(phrase);
+    }
+  }
+  // Also collect numbered/bullet list items that start with a key term
+  const bulletPattern = /^[•\-*\d]+\.?\s+([A-Z][A-Za-z\s\-]+?)(?:\s*[:–—-]|\s*$)/gm;
+  while ((m = bulletPattern.exec(text)) !== null) {
+    const phrase = m[1].trim();
+    if (phrase.length > 3 && phrase.length < 50) {
+      matches.add(phrase);
+    }
+  }
+  return matches.size > 0 ? Array.from(matches).slice(0, 8) : ['General'];
+}
+
+/**
+ * Estimate how many cards to generate based on text length.
+ * Targets ~30 cards for rich material (750+ words), scales down for shorter text.
+ */
+function estimateCardCount(text: string): number {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  return Math.max(5, Math.min(60, Math.round(wordCount / 12)));
+}
+
+const SYSTEM_PROMPT = (subjectTags: string[], targetCount: number) => {
+  const tagHint = subjectTags.length > 0
+    ? subjectTags.map(t => `"${t}"`).join(', ')
+    : 'a relevant topic from the material';
+
+  return `You are a flashcard generation assistant for SM-2 spaced repetition. Your cards must be optimized for ACTIVE RECALL — the user should be able to answer in 3-5 seconds.
+
+RULES (strict — follow every one):
+
+1. ONE FACT PER CARD — Each card tests exactly one specific fact, definition, or relationship. If the text has multiple distinct points about a topic, create multiple cards. NEVER combine multiple facts into one answer.
+
+2. ANSWER LENGTH CAP — Each answer MUST be a short phrase or single sentence under 15-20 words. No multi-sentence paragraphs. No bullet lists. The answer should be something the user can recall in one mental flash.
+
+3. RECALL-FRIENDLY QUESTIONS — Front should be a specific, pinpoint question that targets ONE concept. Avoid "list all", "explain everything", or "what are the types of X" — these inevitably produce long answers. Instead ask "What is X?", "What does Y mean?", "Who proposed Z?".
+
+4. AUTO-SPLIT LONG CONTENT — If a topic naturally produces a long answer, split it into a "core concept" card plus one or more "example/detail" cards with separate questions.
+
+5. TAG — Tag each card with the most relevant topic: ${tagHint}
+
+6. CODE — If the content contains any code or commands, include them as a codeSnippet with the appropriate language.
+
+7. COVERAGE — Generate approximately ${targetCount} cards (minimum 5). If the material is very brief you may generate fewer. Your goal is to cover EVERY distinct fact in the text with atomic cards.
+
+8. OUTPUT FORMAT — Output ONLY valid JSON with no markdown wrapping:
+{
+  "title": "Suggested deck title (derived from the material subject)",
+  "cards": [
+    {
+      "front": "Specific question testing one fact?",
+      "back": "Short phrase or single sentence (under 20 words).",
+      "tag": "Topic name from material",
+      "codeSnippet": { "code": "command/code here", "language": "language-name" }
+    }
+  ]
+}
+
+IMPORTANT: Every card MUST be directly grounded in the provided study material. Do NOT generate information not present in the text.
+
+CRITICAL: Output ONLY the raw JSON object. No introductory text, no explanations, no disclaimers, no conversational language. No markdown code blocks. Begin with { and end with }.`;
+};
+
+function truncateToTokenBudget(text: string, budgetTokens: number): string {
+  const estimatedTokens = Math.ceil(text.length / 4);
+  if (estimatedTokens <= budgetTokens) return text;
+
+  const budgetChars = budgetTokens * 4;
+  const headLen = Math.floor(budgetChars * 0.6);
+  const tailLen = Math.floor(budgetChars * 0.4) - 80;
+  const head = text.slice(0, headLen);
+  const tail = text.slice(text.length - tailLen);
+  return `${head}\n\n[... ${estimatedTokens - budgetTokens} tokens truncated from original ${estimatedTokens} tokens — full material not sent due to API token limits. The generated cards may not cover the entire text.]\n\n${tail}`;
+}
+
+export async function generateCardsFromText(
+  client: Groq,
+  text: string,
+  _onChunk?: (text: string) => void,
+  onProgress?: (current: number, target: number) => void,
+): Promise<GenerationResponse> {
+  const subjectTags = extractSubjectTags(text);
+  const targetCount = estimateCardCount(text);
+  const safeText = truncateToTokenBudget(text, 2000);
+
+  const estimatedInputTokens = Math.ceil(safeText.length / 4) + 250;
+  const maxOutput = Math.max(1000, Math.min(2000, 2000));
+
+  const response = await client.chat.completions.create({
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT(subjectTags, targetCount) },
+      { role: 'user', content: `Generate flashcards from this study material:\n\n${safeText}` },
+    ],
+    temperature: 0.3,
+    max_tokens: maxOutput,
+    response_format: { type: 'json_object' },
+  });
+
+  const fullContent = response.choices[0]?.message?.content || '';
+
+  if (!fullContent.trim()) {
+    throw new SyntaxError(
+      'The AI output was cut off or malformed. Try shorter material or generate in smaller batches.'
+    );
+  }
+
+  // Parse rate-limit headers from the raw response (best-effort in browser)
+  let rateLimitRemaining: number | undefined;
+  let rateLimitResetMs: number | undefined;
+  try {
+    const raw = response as any;
+    const h = raw._response?.headers;
+    if (h) {
+      const rem = h.get('x-ratelimit-remaining-tokens');
+      const reset = h.get('x-ratelimit-reset-tokens');
+      if (rem !== null) rateLimitRemaining = parseInt(rem, 10);
+      if (reset !== null) rateLimitResetMs = parseInt(reset, 10) * 1000;
+    }
+  } catch { /* headers not available in all browser contexts */ }
+
+  onProgress?.(targetCount, targetCount);
+
+  let cleaned = fullContent.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  let result: GenerationResult | null = null;
+
+  function tryParse(raw: string): GenerationResult | null {
+    try {
+      return JSON.parse(raw) as GenerationResult;
+    } catch { return null; }
+  }
+
+  // Attempt 1: full cleaned response
+  result = tryParse(cleaned);
+
+  // Attempt 2 (fallback): extract {…} + balance missing brackets
+  if (!result) {
+    const fb = cleaned.indexOf('{');
+    if (fb !== -1) {
+      let partial = cleaned.slice(fb);
+      const opens = (partial.match(/\{/g) || []).length;
+      const closes = (partial.match(/\}/g) || []).length;
+      const arrOpens = (partial.match(/\[/g) || []).length;
+      const arrCloses = (partial.match(/\]/g) || []).length;
+      partial += ']'.repeat(Math.max(0, arrOpens - arrCloses));
+      partial += '}'.repeat(Math.max(0, opens - closes));
+      result = tryParse(partial);
+    }
+  }
+
+  if (!result) {
+    throw new SyntaxError(
+      'The AI output was cut off or malformed. Try shorter material or generate in smaller batches.'
+    );
+  }
+
+  const estimatedTokensUsed = estimatedInputTokens + maxOutput;
+
+  return {
+    ...result,
+    rateLimitRemaining,
+    rateLimitResetMs,
+    estimatedTokensUsed,
+  };
+}
+
+export async function explainConcept(
+  client: Groq,
+  question: string,
+  answer: string,
+  onChunk?: (text: string) => void
+): Promise<string> {
+  const stream = await client.chat.completions.create({
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      { 
+        role: 'system', 
+        content: 'You are an expert tutor. The user is reviewing a flashcard and needs help understanding the answer. Explain the concept clearly and concisely, using analogies if helpful. Do not just restate the answer; explain *why* it is correct.' 
+      },
+      { 
+        role: 'user', 
+        content: `Flashcard Question:\n${question}\n\nFlashcard Answer:\n${answer}\n\nPlease explain this concept to me.` 
+      },
+    ],
+    temperature: 0.5,
+    max_tokens: 1024,
+    stream: true,
+  });
+
+  let fullContent = '';
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content || '';
+    fullContent += delta;
+    onChunk?.(fullContent);
+  }
+
+  return fullContent;
+}
+
+export async function cleanOCRText(
+  client: Groq,
+  text: string,
+  onChunk?: (text: string) => void
+): Promise<string> {
+  const stream = await client.chat.completions.create({
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      { 
+        role: 'system', 
+        content: `You are an OCR cleanup assistant. The user provides OCR text from study materials. Your job is to reconstruct the original text.
+
+Rules:
+- Fix common OCR errors: broken compound words, stray characters, misread letters
+- Preserve technical terms, proper nouns, and subject-specific terminology exactly
+- Fix markdown formatting, bullet lists, diagram labels
+- Output ONLY the cleaned text — no explanations, no introductions.` 
+      },
+      { 
+        role: 'user', 
+        content: `Clean this OCR text:\n\n${text}` 
+      },
+    ],
+    temperature: 0.1,
+    max_tokens: 2048,
+    stream: true,
+  });
+
+  let fullContent = '';
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content || '';
+    fullContent += delta;
+    onChunk?.(fullContent);
+  }
+
+  return fullContent.trim();
+}
+
+export async function structureStudyMaterial(
+  client: Groq,
+  rawText: string,
+  title: string,
+  onChunk?: (text: string) => void
+): Promise<string> {
+  const stream = await client.chat.completions.create({
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a study material formatting assistant. Given raw text extracted from study materials or OCR, reconstruct it into a clean, well-structured markdown document with proper headings, bullet points, and paragraphs. Preserve ALL technical terms, definitions, and concepts exactly. Do NOT add new information not in the text. Do NOT generate flashcards. Output ONLY the cleaned markdown — no introductions, no explanations.'
+      },
+      {
+        role: 'user',
+        content: `Title: ${title}\n\nRaw text:\n${rawText}`
+      }
+    ],
+    temperature: 0.1,
+    max_tokens: 4096,
+    stream: true,
+  });
+
+  let fullContent = '';
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content || '';
+    fullContent += delta;
+    onChunk?.(fullContent);
+  }
+
+  return fullContent.trim();
+}
+
+function resizeImage(file: File, maxDim = 1600): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const s = maxDim / Math.max(w, h);
+        w = Math.round(w * s);
+        h = Math.round(h * s);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.9));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load image'));
+    };
+    img.src = url;
+  });
+}
+
+export async function extractTextFromImageGroq(
+  client: Groq,
+  imageFile: File,
+  onChunk?: (text: string) => void
+): Promise<string> {
+  const base64 = await resizeImage(imageFile, 1600);
+
+  let fullContent = '';
+  try {
+    const stream = await client.chat.completions.create({
+      model: 'qwen/qwen3.6-27b',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Extract all text from this image exactly as written. Preserve all headings, bullet points, diagram labels (like PC1, SW1, R1), and all formatting. Return ONLY the extracted text with no introductions, no explanations, and no markdown wrapping.' },
+            { type: 'image_url', image_url: { url: base64, detail: 'high' } },
+          ],
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 2048,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || '';
+      fullContent += delta;
+      onChunk?.(fullContent);
+    }
+
+    if (!fullContent.trim()) {
+      throw new Error('Groq Vision returned empty text');
+    }
+
+    return fullContent.trim();
+  } catch (err: any) {
+    const msg = err?.error?.message || err?.message || String(err);
+    throw new Error(`Groq Vision OCR: ${msg}`);
+  }
+}
