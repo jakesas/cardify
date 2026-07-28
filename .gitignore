@@ -1,0 +1,30 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env
+.env.local
+.env.*.local
+
+# Generated artifacts from npm/tauri scripts
+cd
+npm
+tauri
+vite
+flashpoint-ccna-srs@*
+
+# Codegraph index
+.codegraph/
+
+# Internal planning documents
+*.md~
+
+# Implementations plans
+implement.md
+implementation-plan.md
+metadata.json
+
+# Agent workflow state
+.omo/
