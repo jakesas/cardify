@@ -1,0 +1,331 @@
+import { useState, type FC } from 'react';
+import { Deck, Card } from '../types';
+import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap } from 'lucide-react';
+import { isDue, getLocalDateString } from '../utils/sm2';
+
+interface DeckListScreenProps {
+  decks: Deck[];
+  cards: Card[];
+  onSelectDeck: (deckId: string, tab: 'study' | 'review' | 'editor' | 'quiz') => void;
+  onCreateDeck: (name: string, description: string) => void;
+  onDeleteDeck: (deckId: string) => void;
+  onResetToDefaults: () => void;
+}
+
+export const DeckListScreen: FC<DeckListScreenProps> = ({
+  decks,
+  cards,
+  onSelectDeck,
+  onCreateDeck,
+  onDeleteDeck,
+  onResetToDefaults,
+}) => {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newDeckName, setNewDeckName] = useState('');
+  const [newDeckDesc, setNewDeckDesc] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const todayStr = getLocalDateString();
+
+  // Helper to compute stats for each deck
+  const getDeckStats = (deckId: string) => {
+    const deckCards = cards.filter((c) => c.deckId === deckId);
+    const dueCount = deckCards.filter((c) => isDue(c.dueDate, todayStr)).length;
+    return {
+      total: deckCards.length,
+      due: dueCount,
+    };
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDeckName.trim()) {
+      setErrorMsg('Deck name is required');
+      return;
+    }
+    onCreateDeck(newDeckName.trim(), newDeckDesc.trim());
+    setNewDeckName('');
+    setNewDeckDesc('');
+    setErrorMsg('');
+    setShowCreateModal(false);
+  };
+
+  // Find if any deck has cards due to recommend studying
+  const recommendedDeck = decks.find((d) => getDeckStats(d.id).due > 0);
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Welcome Banner / Overview */}
+      <div className="relative overflow-hidden rounded border border-[#2D333B] bg-[#161B22] p-5 md:p-6">
+        <div className="max-w-3xl space-y-3">
+          <div className="flex items-center space-x-2">
+            <span className="px-2 py-0.5 text-[9px] font-mono tracking-widest bg-[#0D1117] text-[#E3B341] rounded border border-[#30363D] uppercase font-bold">
+              SM-2 ENGINE ACTIVE
+            </span>
+            <span className="text-[10px] font-mono text-[#8B949E]">LATENCY: Oms (LOCAL STATE)</span>
+          </div>
+          <h1 className="text-xl font-bold tracking-tight text-white uppercase font-mono">
+            FLASHCARD STUDY INSTRUMENT
+          </h1>
+          <p className="text-xs text-[#8B949E] leading-relaxed">
+            Prepare efficiently across any subject. This high-density study tool uses the SuperMemo SM-2 spacing algorithm to schedule cards based on your performance, minimizing fatigue and maximizing retention.
+          </p>
+          
+          <div className="flex flex-wrap gap-2 pt-1">
+            {recommendedDeck ? (
+              <button
+                onClick={() => onSelectDeck(recommendedDeck.id, 'study')}
+                className="inline-flex items-center space-x-2 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider uppercase rounded transition-colors cursor-pointer"
+              >
+                <span>STUDY RECOMMENDED DECK NOW</span>
+                <ArrowRight size={12} />
+              </button>
+            ) : decks.length > 0 ? (
+              <div className="inline-flex items-center space-x-2 px-3 py-1 bg-[#1F2937]/50 text-[#3FB950] text-[11px] font-mono rounded border border-[#30363D]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse"></span>
+                <span>ALL CARDS CURRENTLY COMPLETED</span>
+              </div>
+            ) : null}
+
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider uppercase rounded border border-[#30363D] transition-colors cursor-pointer"
+            >
+              <Plus size={12} />
+              <span>CREATE DECK</span>
+            </button>
+
+            <button
+              onClick={onResetToDefaults}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-[#8B949E] hover:text-white text-[11px] font-semibold tracking-wider uppercase rounded transition-colors cursor-pointer"
+              title="Reset data back to original sample cards"
+            >
+              <RotateCcw size={12} />
+              <span>FLUSH & RESET DECKS</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Decks Grid */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between border-b border-[#2D333B] pb-1.5">
+          <h2 className="text-xs font-bold tracking-widest text-[#8B949E] uppercase font-mono">
+            SUBJECTS & ACTIVE DECKS
+          </h2>
+          <span className="text-[10px] font-mono text-[#8B949E]">
+            {decks.length} {decks.length === 1 ? 'DECK' : 'DECKS'} AVAILABLE
+          </span>
+        </div>
+
+        {decks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed border-[#2D333B] rounded bg-[#161B22]/20 space-y-3">
+            <BookOpen size={32} className="text-[#8B949E]" />
+            <div className="text-center space-y-1">
+              <p className="text-white text-xs font-semibold uppercase font-mono">No decks found</p>
+              <p className="text-[11px] text-[#8B949E] max-w-sm">
+                Create a custom deck or load the pre-populated sample study cards to start reviewing.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider uppercase rounded transition-colors"
+              >
+                Create New Deck
+              </button>
+              <button
+                onClick={onResetToDefaults}
+                className="px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider uppercase rounded border border-[#30363D] transition-colors"
+              >
+                Load Default Sample Cards
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {decks.map((deck) => {
+              const { total, due } = getDeckStats(deck.id);
+
+              return (
+                <div
+                  key={deck.id}
+                  id={`deck-card-${deck.id}`}
+                  className={`group relative flex flex-col justify-between rounded border p-4 transition-all duration-150 bg-[#161B22] ${
+                    due > 0
+                      ? 'border-[#E3B341]/40 hover:border-[#E3B341]'
+                      : 'border-[#2D333B] hover:border-[#30363D]'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${due > 0 ? 'bg-[#E3B341]' : 'bg-[#8B949E]'}`}></span>
+                        <span className="text-[9px] font-mono text-[#8B949E]">
+                          {deck.id.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Due Count Badge */}
+                      {due > 0 ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/20">
+                          {due} DUE NOW
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#3FB950]/10 text-[#3FB950] border border-[#3FB950]/20">
+                          UP TO DATE
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Title & Description */}
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-bold text-white group-hover:text-[#E3B341] transition-colors font-mono">
+                        {deck.name}
+                      </h3>
+                      <p className="text-[11px] text-[#8B949E] leading-relaxed line-clamp-2">
+                        {deck.description || 'No description provided.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Footer Stats & Actions */}
+                  <div className="mt-4 pt-3 border-t border-[#2D333B] flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[9px] sm:text-[10px] text-[#8B949E] font-mono">
+                      TOTAL: <span className="text-white font-bold">{total} CARDS</span>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
+                      {/* Manage (Card Editor) */}
+                      <button
+                        onClick={() => onSelectDeck(deck.id, 'editor')}
+                        className="p-1 hover:bg-[#30363D] rounded text-[#8B949E] hover:text-white transition-colors cursor-pointer"
+                        title="Manage and Edit Cards"
+                      >
+                        <Edit3 size={12} />
+                      </button>
+
+                      {/* Quiz */}
+                      <button
+                        onClick={() => onSelectDeck(deck.id, 'quiz')}
+                        className="p-1 hover:bg-[#E3B341]/10 rounded text-[#8B949E] hover:text-[#E3B341] transition-colors cursor-pointer"
+                        title="Quiz Mode"
+                      >
+                        <Zap size={12} />
+                      </button>
+
+                      {/* Delete */}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete "${deck.name}" and all of its cards?`)) {
+                            onDeleteDeck(deck.id);
+                          }
+                        }}
+                        className="p-1 hover:bg-[#F85149]/10 rounded text-[#8B949E] hover:text-[#F85149] transition-colors cursor-pointer"
+                        title="Delete Deck"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+
+                      {/* Main Study CTA */}
+                      <button
+                        onClick={() => onSelectDeck(deck.id, due > 0 ? 'study' : 'editor')}
+                        className={`inline-flex items-center space-x-1 px-2 py-1 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                          due > 0
+                            ? 'bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F]'
+                            : 'bg-[#21262D] text-white hover:bg-[#30363D] border border-[#30363D]'
+                        }`}
+                      >
+                        <span>{due > 0 ? 'STUDY' : 'MANAGE'}</span>
+                        <ArrowRight size={9} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Modal Form for Creating a Deck */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md rounded border border-[#2D333B] bg-[#161B22] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#2D333B] pb-2">
+              <h3 className="text-xs font-bold text-[#8B949E] font-mono uppercase tracking-wider">
+                Create New Study Deck
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setErrorMsg('');
+                }}
+                className="text-[#8B949E] hover:text-white text-[10px] font-mono p-1 hover:bg-[#21262D] rounded"
+              >
+                CLOSE
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase font-bold">
+                  Deck Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., OSPF Protocols & Subnetting Labs"
+                  value={newDeckName}
+                  onChange={(e) => setNewDeckName(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600"
+                  maxLength={50}
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase font-bold">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Summarize the core topics in this deck..."
+                  value={newDeckDesc}
+                  onChange={(e) => setNewDeckDesc(e.target.value)}
+                  className="w-full h-20 px-3 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
+                  maxLength={160}
+                />
+              </div>
+
+              {errorMsg && (
+                <div className="flex items-center space-x-1.5 text-[#F85149] text-xs bg-[#F85149]/10 p-2 rounded border border-[#F85149]/20">
+                  <AlertCircle size={12} />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setErrorMsg('');
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#8B949E] hover:text-white rounded hover:bg-[#21262D] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F] rounded transition-colors cursor-pointer"
+                >
+                  Create Deck
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
