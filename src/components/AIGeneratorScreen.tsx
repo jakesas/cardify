@@ -38,6 +38,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
   const docxInputRef = useRef<HTMLInputElement>(null);
 
   const tokenLogRef = useRef<Array<{ tokens: number; ts: number }>>([]);
+  const accumulatedCardsRef = useRef<GeneratedCard[]>([]);
 
   /** Compute how many ms to wait before sending the next chunk so we stay
    *  within ~5000 tokens in the trailing 60s window (leaving 1000 margin
@@ -184,11 +185,10 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
         setProcessingPhase('parsing');
         await new Promise(r => setTimeout(r, 200));
 
-        let accumulatedCards: GeneratedCard[] = [];
-
         setGeneratedCards(prev => {
-          accumulatedCards = [...prev, ...result.cards];
-          return accumulatedCards;
+          const updated = [...prev, ...result.cards];
+          accumulatedCardsRef.current = updated;
+          return updated;
         });
         setGeneratedTitle(prev => prev || result.title || 'AI Generated Deck');
 
@@ -196,7 +196,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
           setChunkIndex(chunkIdx + 2);
           await processChunk(chunkIdx + 1, chunksArr);
         } else {
-          await finishGeneration(accumulatedCards);
+          await finishGeneration();
         }
         return;
       } catch (err: any) {
@@ -243,11 +243,13 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
     }
   };
 
-  const finishGeneration = async (cards: GeneratedCard[]) => {
+  const finishGeneration = async () => {
     setProcessingPhase('parsing');
     await new Promise(r => setTimeout(r, 200));
 
-    setSelectedDeckId(decks[0]?.id || '');
+    const cards = accumulatedCardsRef.current;
+    // Default to first deck only if no deck is selected yet
+    setSelectedDeckId(prev => prev || decks[0]?.id || '');
     setStep('review');
     setSaveResults(null);
     setIsProcessing(false);

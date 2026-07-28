@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Deck, Card, ReviewHistory, ExamDomain } from './types';
-import { INITIAL_DECKS, INITIAL_CARDS } from './data/sampleData';
 import { getLocalDateString, isDue } from './utils/sm2';
 import { DeckListScreen } from './components/DeckListScreen';
 import { StudyMaterialScreen } from './components/StudyMaterialScreen';
@@ -15,7 +14,7 @@ import { Sun, Moon, Database, Activity, LayoutGrid, Sparkles, RefreshCcw, X, Wan
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
-import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, deleteCard, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
+import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, deleteCard, submitReview, getAllReviews } from './db/queries';
 import { getDb, setDbUser } from './db/client';
 import { getPremiumState, activatePremium, type PremiumState } from './utils/premium';
 
@@ -46,14 +45,6 @@ function AppInner() {
     async function init() {
       try {
         setDbUser(uid);
-        const db = await getDb();
-
-        // Check if we need to seed data
-        const hasSeeded = await getSetting('has_seeded');
-        if (hasSeeded !== 'true') {
-          await seedInitialData(db);
-          await setSetting('has_seeded', 'true');
-        }
         
         await loadAllData();
         const ps = await getPremiumState();
@@ -61,45 +52,10 @@ function AppInner() {
       } catch (err) {
         console.error('Failed to initialize database:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize database');
-      } finally {
       }
     }
     init();
   }, [user?.uid]);
-
-  async function seedInitialData(_db: any) {
-    // Use createDeck/createCard so SQLite auto-generates IDs
-    const createdDecks: { oldId: string; newId: string }[] = [];
-
-    for (const deck of INITIAL_DECKS) {
-      try {
-        const created = await createDeck(deck.name, deck.description);
-        createdDecks.push({ oldId: deck.id, newId: String(created.id) });
-      } catch (e) {
-        console.error('Failed to seed deck:', deck.name, e);
-      }
-    }
-
-    // Map old string IDs to new auto-generated IDs
-    const deckIdMap = new Map(createdDecks.map(d => [d.oldId, d.newId]));
-
-    for (const card of INITIAL_CARDS) {
-      const newDeckId = deckIdMap.get(card.deckId);
-      if (!newDeckId) continue;
-      try {
-        await createCard({
-          deckId: newDeckId,
-          cardType: 'basic',
-          front: card.front,
-          back: card.back,
-          tag: card.tag,
-          codeSnippet: card.codeSnippet,
-        });
-      } catch (e) {
-        console.error('Failed to seed card:', card.front?.slice(0, 30), e);
-      }
-    }
-  }
 
   async function loadAllData() {
     const [loadedDecks, loadedCards, loadedHistory] = await Promise.all([
@@ -228,13 +184,12 @@ function AppInner() {
   };
 
   const handleResetToDefaults = async () => {
-    if (confirm('Are you sure you want to reset all data back to the original sample decks? Your custom progress will be overwritten.')) {
+    if (confirm('Are you sure you want to delete ALL data? This cannot be undone.')) {
       try {
         const db = await getDb();
         await db.execute('DELETE FROM reviews');
         await db.execute('DELETE FROM cards');
         await db.execute('DELETE FROM decks');
-        await seedInitialData(db);
         await loadAllData();
         setSelectedDeckId(null);
         setActiveTab('decks');

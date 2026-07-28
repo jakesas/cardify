@@ -139,6 +139,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
         codeSnippet,
       });
       setEditingCardId(null);
+      setSearchQuery(''); // Clear search so the edited card doesn't disappear from the list
     } else {
       // Add
       onAddCard({

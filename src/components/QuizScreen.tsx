@@ -26,17 +26,30 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 function buildQuestions(deckCards: Card[]): QuizQuestion[] {
-  const allBacks = deckCards.map(c => c.back).filter(Boolean);
-
   return shuffle(deckCards).map(card => {
-    const wrongPool = allBacks.filter(b => b !== card.back);
-    let wrongOptions: string[] = [];
-    if (wrongPool.length >= 3) {
-      wrongOptions = shuffle(wrongPool).slice(0, 3);
-    } else {
-      const filler = ['None of the above', 'All of the above', 'This is a distractor'];
-      wrongOptions = [...wrongPool, ...filler].slice(0, 3);
+    // Prefer same-tag backs as distractors — same domain, harder to guess
+    const sameTag = deckCards.filter(c => c.tag === card.tag && c.back !== card.back);
+    const other = deckCards.filter(c => c.tag !== card.tag && c.back !== card.back);
+    const shuffledSame = shuffle(sameTag);
+    const shuffledOther = shuffle(other);
+
+    const wrongOptions: string[] = [];
+    for (const pool of [shuffledSame, shuffledOther]) {
+      for (const c of pool) {
+        if (wrongOptions.length >= 3) break;
+        if (!wrongOptions.includes(c.back)) {
+          wrongOptions.push(c.back);
+        }
+      }
+      if (wrongOptions.length >= 3) break;
     }
+
+    // Fill remaining slots with plausible-sounding options
+    const filler = ['Not enough information provided', 'Configurations are all correct as given'];
+    while (wrongOptions.length < 3 && filler.length > 0) {
+      wrongOptions.push(filler.shift()!);
+    }
+
     const options = shuffle([card.back, ...wrongOptions]);
     return {
       cardId: card.id,
