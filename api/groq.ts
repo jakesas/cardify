@@ -1,10 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const GROQ_API_BASE = 'https://api.groq.com/openai/v1';
+const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only allow the methods Groq SDK uses
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -13,42 +12,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'GROQ_API_KEY not configured on server' });
   }
 
-  // Reconstruct the path from the catch-all slug
-  const slug = ((req.query.slug as string[]) ?? []).join('/');
-  const url = `${GROQ_API_BASE}/${slug}`;
+  // Verify we have a body to forward
+  if (!req.body) {
+    return res.status(400).json({ error: 'Request body is required' });
+  }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
   };
-
-  // Forward Content-Type only when there's a body
-  let body: string | undefined;
-  if (req.method === 'POST') {
-    headers['Content-Type'] = 'application/json';
-    body = JSON.stringify(req.body);
-  }
 
   let groqRes: Response;
   try {
-    groqRes = await fetch(url, {
-      method: req.method,
+    groqRes = await fetch(GROQ_CHAT_URL, {
+      method: 'POST',
       headers,
-      body,
+      body: JSON.stringify(req.body),
     });
   } catch (err) {
     return res.status(502).json({ error: 'Failed to reach Groq API', detail: String(err) });
   }
 
-  // Forward the status code
-  res.status(groqRes.status);
+  // Forward the status code for non-2xx responses
+  if (!groqRes.ok) {
+    const errorBody = await groqRes.text().catch(() => 'Failed to read Groq error body');
+    return res.status(groqRes.status).json({
+      error: 'Groq API error',
+      status: groqRes.status,
+      detail: errorBody,
+    });
+  }
 
-  // Check if the response is streaming (SSE)
-  const isStream =
-    req.body?.stream === true &&
-    groqRes.headers.get('content-type')?.includes('text/event-stream');
-
+  // Streaming: pipe SSE directly to client
+  const isStream = req.body?.stream === true;
   if (isStream && groqRes.body) {
-    // Pipe the SSE stream directly to the client
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -67,11 +64,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Non-streaming: forward the JSON body as-is
+  // Non-streaming: forward JSON body
   try {
     const data = await groqRes.json();
-    return res.json(data);
+    return res.status(200).json(data);
   } catch {
-    return res.status(groqRes.status).json({ error: 'Unexpected response from Groq API' });
+    return res.status(502).json({ error: 'Unexpected response from Groq API' });
   }
 }

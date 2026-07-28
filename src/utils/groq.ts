@@ -20,6 +20,13 @@ export interface GenerationResponse extends GenerationResult {
   estimatedTokensUsed: number;
 }
 
+const _proxyCheck = () => import.meta.env.PROD && !import.meta.env.VITE_GROQ_API_KEY;
+/**
+ * True when running in production with no VITE_GROQ_API_KEY — AI uses raw
+ * fetch to /api/groq instead of the Groq SDK, keeping the real key server-side.
+ */
+export const IS_PROXY = _proxyCheck();
+
 export function createGroqClient(apiKey: string, baseUrl?: string): Groq {
   return new Groq({
     apiKey,
@@ -40,12 +47,72 @@ export function createGroqClient(apiKey: string, baseUrl?: string): Groq {
 export function getAiConfig(): { apiKey: string; baseUrl?: string } | null {
   const envKey = import.meta.env.VITE_GROQ_API_KEY || '';
   if (envKey) return { apiKey: envKey };
-  // Production: proxy through the Vercel serverless function at /api/groq
   if (import.meta.env.PROD) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return { apiKey: 'placeholder', baseUrl: `${origin}/api/groq` };
+    return { apiKey: 'placeholder' };
   }
   return null;
+}
+
+
+
+async function proxyRequest(body: object): Promise<any> {
+  const response = await fetch('/api/groq', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '(no body)');
+    throw new Error(`${response.status} ${errText}`);
+  }
+  return response.json();
+}
+
+async function proxyStreamRequest(
+  body: object,
+  onChunk?: (text: string) => void,
+): Promise<string> {
+  const response = await fetch('/api/groq', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '(no body)');
+    throw new Error(`Proxy error: ${response.status} ${errText}`);
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullContent = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line.startsWith('data: ') && line.slice(6) !== '[DONE]') {
+        try {
+          const parsed = JSON.parse(line.slice(6));
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullContent += delta;
+            onChunk?.(fullContent);
+          }
+        } catch {
+          // skip malformed JSON in SSE
+        }
+      }
+    }
+  }
+
+  return fullContent;
 }
 
 /**
@@ -150,16 +217,20 @@ export async function generateCardsFromText(
   const estimatedInputTokens = Math.ceil(safeText.length / 4) + 250;
   const maxOutput = Math.max(1000, Math.min(2000, 2000));
 
-  const response = await client.chat.completions.create({
+  const requestBody = {
     model: 'llama-3.1-8b-instant',
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT(subjectTags, targetCount) },
-      { role: 'user', content: `Generate flashcards from this study material:\n\n${safeText}` },
+      { role: 'system' as const, content: SYSTEM_PROMPT(subjectTags, targetCount) },
+      { role: 'user' as const, content: `Generate flashcards from this study material:\n\n${safeText}` },
     ],
     temperature: 0.3,
     max_tokens: maxOutput,
-    response_format: { type: 'json_object' },
-  });
+    response_format: { type: 'json_object' as const },
+  };
+
+  const response = IS_PROXY
+    ? await proxyRequest(requestBody)
+    : await client.chat.completions.create(requestBody);
 
   const fullContent = response.choices[0]?.message?.content || '';
 
@@ -234,30 +305,34 @@ export async function explainConcept(
   answer: string,
   onChunk?: (text: string) => void
 ): Promise<string> {
-  const stream = await client.chat.completions.create({
+  const body = {
     model: 'llama-3.1-8b-instant',
     messages: [
-      { 
-        role: 'system', 
-        content: 'You are an expert tutor. The user is reviewing a flashcard and needs help understanding the answer. Explain the concept clearly and concisely, using analogies if helpful. Do not just restate the answer; explain *why* it is correct.' 
+      {
+        role: 'system' as const,
+        content: 'You are an expert tutor. The user is reviewing a flashcard and needs help understanding the answer. Explain the concept clearly and concisely, using analogies if helpful. Do not just restate the answer; explain *why* it is correct.'
       },
-      { 
-        role: 'user', 
-        content: `Flashcard Question:\n${question}\n\nFlashcard Answer:\n${answer}\n\nPlease explain this concept to me.` 
+      {
+        role: 'user' as const,
+        content: `Flashcard Question:\n${question}\n\nFlashcard Answer:\n${answer}\n\nPlease explain this concept to me.`
       },
     ],
     temperature: 0.5,
     max_tokens: 1024,
-    stream: true,
-  });
+    stream: true as const,
+  };
 
+  if (IS_PROXY) {
+    return proxyStreamRequest(body, onChunk);
+  }
+
+  const stream = await client.chat.completions.create(body);
   let fullContent = '';
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content || '';
     fullContent += delta;
     onChunk?.(fullContent);
   }
-
   return fullContent;
 }
 
@@ -266,36 +341,40 @@ export async function cleanOCRText(
   text: string,
   onChunk?: (text: string) => void
 ): Promise<string> {
-  const stream = await client.chat.completions.create({
+  const body = {
     model: 'llama-3.1-8b-instant',
     messages: [
-      { 
-        role: 'system', 
+      {
+        role: 'system' as const,
         content: `You are an OCR cleanup assistant. The user provides OCR text from study materials. Your job is to reconstruct the original text.
 
 Rules:
 - Fix common OCR errors: broken compound words, stray characters, misread letters
 - Preserve technical terms, proper nouns, and subject-specific terminology exactly
 - Fix markdown formatting, bullet lists, diagram labels
-- Output ONLY the cleaned text — no explanations, no introductions.` 
+- Output ONLY the cleaned text — no explanations, no introductions.`
       },
-      { 
-        role: 'user', 
-        content: `Clean this OCR text:\n\n${text}` 
+      {
+        role: 'user' as const,
+        content: `Clean this OCR text:\n\n${text}`
       },
     ],
     temperature: 0.1,
     max_tokens: 2048,
-    stream: true,
-  });
+    stream: true as const,
+  };
 
+  if (IS_PROXY) {
+    return proxyStreamRequest(body, onChunk);
+  }
+
+  const stream = await client.chat.completions.create(body);
   let fullContent = '';
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content || '';
     fullContent += delta;
     onChunk?.(fullContent);
   }
-
   return fullContent.trim();
 }
 
@@ -305,30 +384,34 @@ export async function structureStudyMaterial(
   title: string,
   onChunk?: (text: string) => void
 ): Promise<string> {
-  const stream = await client.chat.completions.create({
+  const body = {
     model: 'llama-3.1-8b-instant',
     messages: [
       {
-        role: 'system',
+        role: 'system' as const,
         content: 'You are a study material formatting assistant. Given raw text extracted from study materials or OCR, reconstruct it into a clean, well-structured markdown document with proper headings, bullet points, and paragraphs. Preserve ALL technical terms, definitions, and concepts exactly. Do NOT add new information not in the text. Do NOT generate flashcards. Output ONLY the cleaned markdown — no introductions, no explanations.'
       },
       {
-        role: 'user',
+        role: 'user' as const,
         content: `Title: ${title}\n\nRaw text:\n${rawText}`
       }
     ],
     temperature: 0.1,
     max_tokens: 4096,
-    stream: true,
-  });
+    stream: true as const,
+  };
 
+  if (IS_PROXY) {
+    return proxyStreamRequest(body, onChunk);
+  }
+
+  const stream = await client.chat.completions.create(body);
   let fullContent = '';
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content || '';
     fullContent += delta;
     onChunk?.(fullContent);
   }
-
   return fullContent.trim();
 }
 
@@ -368,28 +451,35 @@ export async function extractTextFromImageGroq(
 ): Promise<string> {
   const base64 = await resizeImage(imageFile, 1600);
 
-  let fullContent = '';
-  try {
-    const stream = await client.chat.completions.create({
-      model: 'qwen/qwen3.6-27b',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Extract all text from this image exactly as written. Preserve all headings, bullet points, diagram labels (like PC1, SW1, R1), and all formatting. Return ONLY the extracted text with no introductions, no explanations, and no markdown wrapping.' },
-            { type: 'image_url', image_url: { url: base64, detail: 'high' } },
-          ],
-        },
-      ],
-      temperature: 0.1,
-      max_tokens: 2048,
-      stream: true,
-    });
+  const body = {
+    model: 'qwen/qwen3.6-27b',
+    messages: [
+      {
+        role: 'user' as const,
+        content: [
+          { type: 'text' as const, text: 'Extract all text from this image exactly as written. Preserve all headings, bullet points, diagram labels (like PC1, SW1, R1), and all formatting. Return ONLY the extracted text with no introductions, no explanations, and no markdown wrapping.' },
+          { type: 'image_url' as const, image_url: { url: base64, detail: 'high' as const } },
+        ],
+      },
+    ],
+    temperature: 0.1,
+    max_tokens: 2048,
+    stream: true as const,
+  };
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || '';
-      fullContent += delta;
-      onChunk?.(fullContent);
+  try {
+    let fullContent: string;
+
+    if (IS_PROXY) {
+      fullContent = await proxyStreamRequest(body, onChunk);
+    } else {
+      const stream = await client.chat.completions.create(body);
+      fullContent = '';
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content || '';
+        fullContent += delta;
+        onChunk?.(fullContent);
+      }
     }
 
     if (!fullContent.trim()) {
