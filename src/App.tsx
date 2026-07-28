@@ -366,6 +366,18 @@ function AppInner() {
               >
                 {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
               </button>
+              {user?.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt="Profile"
+                  className="w-6 h-6 rounded-full border border-[#30363D] object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] flex items-center justify-center text-[9px] font-bold text-[#8B949E]">
+                  {(user?.email?.[0] || '?').toUpperCase()}
+                </div>
+              )}
               <button
                 onClick={logout}
                 className="p-1.5 bg-[#161B22] hover:bg-[#F85149]/20 rounded border border-[#30363D] text-[#8B949E] hover:text-[#F85149] transition-colors cursor-pointer"
@@ -489,6 +501,18 @@ function AppInner() {
             >
               {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
             </button>
+            {user?.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt="Profile"
+                className="w-6 h-6 rounded-full border border-[#30363D] object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] flex items-center justify-center text-[9px] font-bold text-[#8B949E]">
+                {(user?.email?.[0] || '?').toUpperCase()}
+              </div>
+            )}
             <button
               onClick={logout}
               className="p-1.5 bg-[#161B22] hover:bg-[#F85149]/20 rounded border border-[#30363D] text-[#8B949E] hover:text-[#F85149] transition-colors cursor-pointer"
