@@ -41,7 +41,10 @@ export function getAiConfig(): { apiKey: string; baseUrl?: string } | null {
   const envKey = import.meta.env.VITE_GROQ_API_KEY || '';
   if (envKey) return { apiKey: envKey };
   // Production: proxy through the Vercel serverless function at /api/groq
-  if (import.meta.env.PROD) return { apiKey: 'placeholder', baseUrl: '/api/groq' };
+  if (import.meta.env.PROD) {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return { apiKey: 'placeholder', baseUrl: `${origin}/api/groq` };
+  }
   return null;
 }
 
