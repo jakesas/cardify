@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* High Density Theme Custom Variables */
+  --color-hd-bg-deep: #0F1115;
+  --color-hd-bg-panel: #161B22;
+  --color-hd-bg-darker: #0D1117;
+  --color-hd-border-main: #2D333B;
+  --color-hd-border-sub: #30363D;
+  --color-hd-text-main: #E0E0E0;
+  --color-hd-text-sub: #8B949E;
+  --color-hd-text-muted: #484F58;
+  --color-hd-gold: #E3B341;
+  --color-hd-blue: #388BFD;
+  --color-hd-red: #F85149;
+  --color-hd-green: #3FB950;
+}
+
+/* Custom subtle scrollbar styling for a premium dev-tool aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.45);
+}
+
+/* Hide scrollbar for nav on small screens */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Extra small screen helper */
+@media (max-width: 480px) {
+  .text-2xs { font-size: 0.65rem; }
+}
