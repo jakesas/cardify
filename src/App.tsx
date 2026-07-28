@@ -284,200 +284,115 @@ function AppInner() {
       )}
 
       <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col min-h-screen">
-        <header className="flex flex-col sm:grid sm:grid-cols-3 sm:items-center gap-1 pb-1 sm:pb-2 mb-2 sm:mb-3 border-b border-[#2D333B]">
-          {/* Col 1: Logo + Timer + Due (left) */}
-          <div className="flex items-center justify-between w-full sm:justify-start">
-            <div className="flex items-center space-x-1.5 sm:space-x-2 min-w-0">
-              <div className="flex items-center space-x-1.5 cursor-pointer flex-shrink-0 min-w-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
-                <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#E3B341] flex-shrink-0 shadow-md shadow-[#E3B341]/10 overflow-hidden">
+        <header className="pb-2 mb-3 border-b border-[#2D333B]">
+          {/* Row 1: Brand + Timer + Due (left) / Actions (right) */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              {/* Logo + Brand */}
+              <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
+                <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#E3B341] overflow-hidden flex-shrink-0">
                   <img src={logoSrc} alt="CardifyA.I" className="w-full h-full object-cover" />
                 </div>
-                <div className="text-left min-w-0">
-                  <div className="flex items-center gap-1">
-                    <h1 className="text-[10px] sm:text-sm font-bold text-white">CardifyA.I</h1>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-bold text-white tracking-tight">CardifyA.I</span>
                     {premiumState?.status === 'active' && (
-                      <span className="px-1 py-0.5 rounded bg-[#3FB950]/20 text-[#3FB950] text-[7px] sm:text-[8px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
+                      <span className="px-1 py-0.5 rounded bg-[#3FB950]/15 text-[#3FB950] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
                     )}
                     {premiumState?.status === 'trial' && (
-                      <span className="px-1 py-0.5 rounded bg-[#E3B341]/20 text-[#E3B341] text-[7px] sm:text-[8px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
+                      <span className="px-1 py-0.5 rounded bg-[#E3B341]/15 text-[#E3B341] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
                     )}
                   </div>
                 </div>
               </div>
+
+              {/* Divider */}
+              <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden sm:block"></span>
+
+              {/* Timer */}
               <HeaderTimer />
+
+              {/* Due badge */}
               {totalDueTodayCount > 0 && (
-                <div className="flex items-center space-x-1 px-1.5 py-0.5 rounded border border-[#30363D] bg-[#161B22] text-[#E3B341] font-mono text-[8px] sm:text-[10px] font-bold" title="Reviews due today">
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3B341]/10 text-[#E3B341] font-mono text-[10px] font-bold" title="Reviews due today">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#E3B341]"></span>
-                  <span className="sm:hidden">{totalDueTodayCount}</span>
-                  <span className="hidden sm:inline">{totalDueTodayCount} DUE</span>
+                  <span>{totalDueTodayCount}</span>
                 </div>
               )}
             </div>
 
-            {/* Mobile: theme + profile + logout (right side) */}
-            <div className="flex sm:hidden items-center space-x-1">
+            {/* Right: actions (always visible) */}
+            <div className="flex items-center gap-1">
               {premiumState?.status === 'trial' && (
                 <button
                   onClick={() => setShowUpgrade(true)}
-                  className="p-1.5 bg-[#E3B341]/10 hover:bg-[#E3B341]/20 rounded border border-[#E3B341]/30 text-[#E3B341] hover:text-[#F0C24F] transition-colors cursor-pointer"
-                  aria-label="Upgrade to Premium"
+                  className="px-2 py-1 rounded text-[#E3B341] hover:bg-[#E3B341]/10 text-[10px] font-bold font-mono uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
                   title="Upgrade to Premium"
                 >
-                  <CreditCard size={13} />
+                  <CreditCard size={12} />
+                  <span className="hidden sm:inline">Upgrade</span>
                 </button>
               )}
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="p-1.5 bg-[#161B22] hover:bg-[#21262D] rounded border border-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded text-[#8B949E] hover:text-white hover:bg-[#1C2128] transition-colors cursor-pointer"
                 aria-label="Toggle Theme Mode"
               >
-                {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+                {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
               </button>
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
                   alt="Profile"
-                  className="w-6 h-6 rounded-full border border-[#30363D] object-cover"
+                  className="w-7 h-7 rounded-full border border-[#2D333B] object-cover"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] flex items-center justify-center text-[9px] font-bold text-[#8B949E]">
+                <div className="w-7 h-7 rounded-full bg-[#1C2128] flex items-center justify-center text-[10px] font-bold text-[#8B949E]">
                   {(user?.email?.[0] || '?').toUpperCase()}
                 </div>
               )}
               <button
                 onClick={logout}
-                className="p-1.5 bg-[#161B22] hover:bg-[#F85149]/20 rounded border border-[#30363D] text-[#8B949E] hover:text-[#F85149] transition-colors cursor-pointer"
+                className="p-1.5 rounded text-[#8B949E] hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
                 aria-label="Log out"
                 title="Log out"
               >
-                <LogOut size={13} />
+                <LogOut size={14} />
               </button>
             </div>
           </div>
 
-          {/* Col 2: Nav (scrollable on mobile, centered on desktop) */}
-          <div className="flex justify-center w-full min-w-0">
-            <nav className="flex items-center sm:justify-center overflow-x-auto flex-nowrap sm:flex-wrap gap-0.5 p-0.5 sm:p-1 rounded bg-[#161B22] border border-[#30363D] max-w-full scrollbar-none">
-              <button
-                onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}
-                className={`flex items-center space-x-1 px-2 sm:px-3 py-0.5 rounded text-[9px] sm:text-xs font-semibold tracking-wide uppercase transition-all cursor-pointer ${
-                  activeTab === 'decks'
-                    ? 'bg-[#E3B341] text-[#0F1115] shadow'
-                    : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]'
-                }`}
-              >
-                <LayoutGrid size={12} />
-                <span>Decks</span>
-              </button>
-
-              {activeDeck && (
-                <>
-                  <button
-                    onClick={() => setActiveTab('review')}
-                    className={`flex items-center space-x-1 px-2 sm:px-3 py-1 rounded text-[9px] sm:text-xs font-semibold tracking-wide uppercase transition-all cursor-pointer ${
-                      activeTab === 'review'
-                        ? 'bg-[#E3B341] text-[#0F1115] shadow'
-                        : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]'
-                    }`}
-                  >
-                    <Activity size={12} />
-                    <span className="hidden sm:inline">Review</span>
-                    <span className="sm:hidden">Rev</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('editor')}
-                    className={`flex items-center space-x-1 px-2 sm:px-3 py-1 rounded text-[9px] sm:text-xs font-semibold tracking-wide uppercase transition-all cursor-pointer ${
-                      activeTab === 'editor'
-                        ? 'bg-[#E3B341] text-[#0F1115] shadow'
-                        : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]'
-                    }`}
-                  >
-                    <Database size={12} />
-                    <span>Edit</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('quiz')}
-                    className={`flex items-center space-x-1 px-2 sm:px-3 py-1 rounded text-[9px] sm:text-xs font-semibold tracking-wide uppercase transition-all cursor-pointer ${
-                      activeTab === 'quiz'
-                        ? 'bg-[#E3B341] text-[#0F1115] shadow'
-                        : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]'
-                    }`}
-                  >
-                    <Zap size={12} />
-                    <span>Quiz</span>
-                  </button>
-                </>
-              )}
-
-              <button
-                onClick={() => setActiveTab('stats')}
-                className={`flex items-center space-x-1 px-2 sm:px-3 py-1 rounded text-[9px] sm:text-xs font-semibold tracking-wide uppercase transition-all cursor-pointer ${
-                  activeTab === 'stats'
-                    ? 'bg-[#E3B341] text-[#0F1115] shadow'
-                    : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]'
-                }`}
-              >
-              <Sparkles size={12} />
-              <span>Stats</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('ai')}
-                className={`flex items-center space-x-1 px-2 sm:px-3 py-1 rounded text-[9px] sm:text-xs font-semibold tracking-wide uppercase transition-all cursor-pointer ${
-                  activeTab === 'ai'
-                    ? 'bg-[#E3B341] text-[#0F1115] shadow'
-                    : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]'
-                }`}
-              >
-                <Wand2 size={12} />
-                <span>AI</span>
-              </button>
-            </nav>
-          </div>
-
-          {/* Col 3: theme toggle + profile + logout (desktop only) */}
-          <div className="hidden sm:flex items-center justify-end space-x-1.5 sm:space-x-2">
-            {premiumState?.status === 'trial' && (
-              <button
-                onClick={() => setShowUpgrade(true)}
-                className="px-2 py-1 bg-[#E3B341]/10 hover:bg-[#E3B341]/20 rounded border border-[#E3B341]/30 text-[#E3B341] hover:text-[#F0C24F] text-[10px] font-bold font-mono uppercase tracking-wider transition-colors flex items-center space-x-1 cursor-pointer"
-                title="Upgrade to Premium"
-              >
-                <CreditCard size={12} />
-                <span className="hidden sm:inline">Upgrade</span>
-              </button>
-            )}
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-1.5 bg-[#161B22] hover:bg-[#21262D] rounded border border-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer"
-              aria-label="Toggle Theme Mode"
-            >
-              {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
-            </button>
-            {user?.photoURL ? (
-              <img
-                src={user.photoURL}
-                alt="Profile"
-                className="w-6 h-6 rounded-full border border-[#30363D] object-cover"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] flex items-center justify-center text-[9px] font-bold text-[#8B949E]">
-                {(user?.email?.[0] || '?').toUpperCase()}
-              </div>
-            )}
-            <button
-              onClick={logout}
-              className="p-1.5 bg-[#161B22] hover:bg-[#F85149]/20 rounded border border-[#30363D] text-[#8B949E] hover:text-[#F85149] transition-colors cursor-pointer"
-              aria-label="Log out"
-              title="Log out"
-            >
-              <LogOut size={13} />
-            </button>
-          </div>
+          {/* Row 2: Nav — text-based, clean, centered */}
+          <nav className="flex items-center justify-center sm:justify-center overflow-x-auto flex-nowrap gap-0.5 mt-2 scrollbar-none">
+            {[
+              { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
+              ...(activeDeck ? [
+                { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
+                { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
+                { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
+              ] : []),
+              { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
+              { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={item.onClick}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+                    isActive
+                      ? 'text-white bg-[#1C2128]'
+                      : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]/50'
+                  }`}
+                >
+                  <Icon size={13} className={isActive ? 'text-[#E3B341]' : ''} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </header>
 
         {/* Trial countdown banner */}
