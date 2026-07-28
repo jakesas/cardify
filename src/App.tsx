@@ -10,7 +10,7 @@ import { QuizScreen } from './components/QuizScreen';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import { HeaderTimer } from './components/HeaderTimer';
 import logoSrc from '/logo.png';
-import { Database, Activity, LayoutGrid, Sparkles, RefreshCcw, X, Wand2, Zap, LogOut, CreditCard } from 'lucide-react';
+import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
@@ -266,41 +266,67 @@ function AppInner() {
         </div>
       )}
 
-      <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col min-h-screen">
+      <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col min-h-screen pb-20 sm:pb-3">
         <header className="pb-2 mb-3 border-b border-[#2D333B]">
           {/* Three-zone layout: left (brand+timer) | center (nav) | right (actions) */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
-            {/* Zone Left: Logo + brand + divider + timer + due */}
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
-                <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#E3B341] overflow-hidden flex-shrink-0">
-                  <img src={logoSrc} alt="CardifyA.I" className="w-full h-full object-cover" />
+            {/* Zone Left: Logo + brand + timer + due + mobile actions */}
+            <div className="flex items-center justify-between w-full sm:w-auto">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
+                  <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#E3B341] overflow-hidden flex-shrink-0">
+                    <img src={logoSrc} alt="CardifyA.I" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-bold text-white tracking-tight">CardifyA.I</span>
+                    {premiumState?.status === 'active' && (
+                      <span className="px-1 py-0.5 rounded bg-[#3FB950]/15 text-[#3FB950] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
+                    )}
+                    {premiumState?.status === 'trial' && (
+                      <span className="px-1 py-0.5 rounded bg-[#E3B341]/15 text-[#E3B341] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs sm:text-sm font-bold text-white tracking-tight">CardifyA.I</span>
-                  {premiumState?.status === 'active' && (
-                    <span className="px-1 py-0.5 rounded bg-[#3FB950]/15 text-[#3FB950] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
-                  )}
-                  {premiumState?.status === 'trial' && (
-                    <span className="px-1 py-0.5 rounded bg-[#E3B341]/15 text-[#E3B341] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
-                  )}
-                </div>
+
+                <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden sm:block"></span>
+
+                <HeaderTimer />
+
+                {totalDueTodayCount > 0 && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3B341]/10 text-[#E3B341] font-mono text-[10px] font-bold" title="Reviews due today">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#E3B341]"></span>
+                    <span>{totalDueTodayCount}</span>
+                  </div>
+                )}
               </div>
 
-              <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden sm:block"></span>
-
-              <HeaderTimer />
-
-              {totalDueTodayCount > 0 && (
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3B341]/10 text-[#E3B341] font-mono text-[10px] font-bold" title="Reviews due today">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#E3B341]"></span>
-                  <span>{totalDueTodayCount}</span>
-                </div>
-              )}
+              {/* Mobile: avatar + logout inline in top row */}
+              <div className="flex sm:hidden items-center gap-3">
+                {user?.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt="Profile"
+                    className="w-7 h-7 rounded-full border border-[#2D333B] object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-[#1C2128] flex items-center justify-center text-[10px] font-bold text-[#8B949E]">
+                    {(user?.email?.[0] || '?').toUpperCase()}
+                  </div>
+                )}
+                <button
+                  onClick={logout}
+                  className="flex items-center justify-center w-7 h-7 rounded text-[#8B949E] hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
+                  aria-label="Log out"
+                  title="Log out"
+                >
+                  <LogOut size={14} />
+                </button>
+              </div>
             </div>
 
-            {/* Zone Center: Nav as segmented control */}
-            <nav className="flex items-center justify-center sm:justify-center flex-1 overflow-x-auto scrollbar-none">
+            {/* Zone Center: Nav as segmented control (desktop only) */}
+            <nav className="hidden sm:flex items-center justify-center flex-1 overflow-x-auto scrollbar-none">
               <div className="flex items-center bg-[#161B22] rounded-lg p-0.5 border border-[#2D333B] gap-0.5">
                 {[
                   { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
@@ -332,8 +358,8 @@ function AppInner() {
               </div>
             </nav>
 
-            {/* Zone Right: Actions with consistent 16px gaps */}
-            <div className="flex items-center justify-end gap-4">
+            {/* Zone Right: desktop actions */}
+            <div className="hidden sm:flex items-center justify-end gap-4">
               {premiumState?.status === 'trial' && (
                 <button
                   onClick={() => setShowUpgrade(true)}
@@ -367,6 +393,40 @@ function AppInner() {
             </div>
           </div>
         </header>
+
+        {/* Mobile bottom tab bar */}
+        <nav className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#0F1115] border-t border-[#2D333B] flex items-center justify-around px-2 py-1.5 safe-area-bottom">
+          {[
+            { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
+            ...(activeDeck ? [
+              { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
+            ] : []),
+            { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
+            { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={item.onClick}
+                className={`flex flex-col items-center gap-0.5 py-1 px-3 min-w-0 transition-colors cursor-pointer ${
+                  isActive
+                    ? 'text-[#E3B341]'
+                    : 'text-[#8B949E] hover:text-white'
+                }`}
+              >
+                <Icon size={18} />
+                <span className={`text-[9px] font-medium font-mono ${
+                  isActive ? 'font-bold' : ''
+                }`}>
+                  {item.label}
+                </span>
+                {isActive && <span className="w-4 h-0.5 rounded-full bg-[#E3B341] mt-0.5" />}
+              </button>
+            );
+          })}
+        </nav>
 
         {/* Trial countdown banner */}
         {premiumState?.status === 'trial' && premiumState.trialDaysRemaining <= 1 && (
@@ -451,23 +511,10 @@ function AppInner() {
           )}
         </main>
 
-        <footer className="mt-8 sm:mt-12 pt-4 border-t border-[#2D333B] flex flex-col sm:flex-row items-center justify-between text-[9px] sm:text-[10px] font-mono text-[#8B949E] gap-3 sm:gap-4">
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-            <span>CORE SYSTEM: SECURE</span>
-            <span className="hidden xs:inline">•</span>
-            <span>SM-2 ACTIVE</span>
-            <span className="hidden xs:inline">•</span>
-            <button
-              onClick={handleResetToDefaults}
-              className="text-[#E3B341] hover:underline transition-colors flex items-center space-x-1 cursor-pointer"
-            >
-              <RefreshCcw size={9} />
-              <span>Full Flush DB</span>
-            </button>
-          </div>
-          <div className="text-center sm:text-right text-[8px] sm:text-[10px]">
-            <span>Offline-first high-density flashcard interface • SM-2 spaced repetition active</span>
-          </div>
+        <footer className="mt-8 sm:mt-12 pt-4 border-t border-[#2D333B] text-center">
+          <p className="text-[11px] font-mono text-[#8B949E]">
+            Sm-2 spaced repetition engine &mdash; all data stored locally in your browser
+          </p>
         </footer>
       </div>
     </div>

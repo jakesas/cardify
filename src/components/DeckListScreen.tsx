@@ -60,12 +60,12 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
         <div className="max-w-3xl space-y-3">
           <div className="flex items-center space-x-2">
             <span className="px-2 py-0.5 text-[9px] font-mono tracking-widest bg-[#0D1117] text-[#E3B341] rounded border border-[#30363D] uppercase font-bold">
-              SM-2 ENGINE ACTIVE
+              Sm-2 engine active
             </span>
-            <span className="text-[10px] font-mono text-[#8B949E]">LATENCY: Oms (LOCAL STATE)</span>
+            <span className="text-[10px] font-mono text-[#8B949E]">Latency: 0ms (local state)</span>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white uppercase font-mono">
-            FLASHCARD STUDY INSTRUMENT
+          <h1 className="text-xl font-bold tracking-tight text-white font-mono">
+            Flashcard study instrument
           </h1>
           <p className="text-xs text-[#8B949E] leading-relaxed">
             Prepare efficiently across any subject. This high-density study tool uses the SuperMemo SM-2 spacing algorithm to schedule cards based on your performance, minimizing fatigue and maximizing retention.
@@ -75,33 +75,33 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
             {recommendedDeck ? (
               <button
                 onClick={() => onSelectDeck(recommendedDeck.id, 'study')}
-                className="inline-flex items-center space-x-2 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider uppercase rounded transition-colors cursor-pointer"
+                className="inline-flex items-center space-x-2 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider rounded transition-colors cursor-pointer"
               >
-                <span>STUDY RECOMMENDED DECK NOW</span>
+                <span>Study recommended deck now</span>
                 <ArrowRight size={12} />
               </button>
             ) : decks.length > 0 ? (
               <div className="inline-flex items-center space-x-2 px-3 py-1 bg-[#1F2937]/50 text-[#3FB950] text-[11px] font-mono rounded border border-[#30363D]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse"></span>
-                <span>ALL CARDS CURRENTLY COMPLETED</span>
+                <span>All cards up to date</span>
               </div>
             ) : null}
 
             <button
               onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider uppercase rounded border border-[#30363D] transition-colors cursor-pointer"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors cursor-pointer"
             >
               <Plus size={12} />
-              <span>CREATE DECK</span>
+              <span>Create deck</span>
             </button>
 
             <button
               onClick={onResetToDefaults}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-[#8B949E] hover:text-white text-[11px] font-semibold tracking-wider uppercase rounded transition-colors cursor-pointer"
-              title="Reset data back to original sample cards"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-[#8B949E] hover:text-white text-[11px] font-semibold tracking-wider rounded transition-colors cursor-pointer"
+              title="Reset all data"
             >
               <RotateCcw size={12} />
-              <span>FLUSH & RESET DECKS</span>
+              <span>Flush & reset decks</span>
             </button>
           </div>
         </div>
@@ -110,11 +110,11 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
       {/* Main Decks Grid */}
       <div className="space-y-3">
         <div className="flex items-center justify-between border-b border-[#2D333B] pb-1.5">
-          <h2 className="text-xs font-bold tracking-widest text-[#8B949E] uppercase font-mono">
-            SUBJECTS & ACTIVE DECKS
+          <h2 className="text-xs font-bold tracking-widest text-[#8B949E] font-mono">
+            Subjects & active decks
           </h2>
           <span className="text-[10px] font-mono text-[#8B949E]">
-            {decks.length} {decks.length === 1 ? 'DECK' : 'DECKS'} AVAILABLE
+            {decks.length} {decks.length === 1 ? 'deck' : 'decks'} available
           </span>
         </div>
 
@@ -170,11 +170,11 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                       {/* Due Count Badge */}
                       {due > 0 ? (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/20">
-                          {due} DUE NOW
+                          {due} due now
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#3FB950]/10 text-[#3FB950] border border-[#3FB950]/20">
-                          UP TO DATE
+                          Up to date
                         </span>
                       )}
                     </div>
@@ -193,26 +193,26 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                   {/* Footer Stats & Actions */}
                   <div className="mt-4 pt-3 border-t border-[#2D333B] flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[9px] sm:text-[10px] text-[#8B949E] font-mono">
-                      TOTAL: <span className="text-white font-bold">{total} CARDS</span>
+                      Total: <span className="text-white font-bold">{total} cards</span>
                     </div>
 
-                    <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                       {/* Manage (Card Editor) */}
                       <button
                         onClick={() => onSelectDeck(deck.id, 'editor')}
-                        className="p-1 hover:bg-[#30363D] rounded text-[#8B949E] hover:text-white transition-colors cursor-pointer"
-                        title="Manage and Edit Cards"
+                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-white hover:bg-[#30363D] transition-colors cursor-pointer"
+                        title="Manage and edit cards"
                       >
-                        <Edit3 size={12} />
+                        <Edit3 size={14} />
                       </button>
 
                       {/* Quiz */}
                       <button
                         onClick={() => onSelectDeck(deck.id, 'quiz')}
-                        className="p-1 hover:bg-[#E3B341]/10 rounded text-[#8B949E] hover:text-[#E3B341] transition-colors cursor-pointer"
-                        title="Quiz Mode"
+                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#E3B341] hover:bg-[#E3B341]/10 transition-colors cursor-pointer"
+                        title="Quiz mode"
                       >
-                        <Zap size={12} />
+                        <Zap size={14} />
                       </button>
 
                       {/* Delete */}
@@ -222,23 +222,23 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                             onDeleteDeck(deck.id);
                           }
                         }}
-                        className="p-1 hover:bg-[#F85149]/10 rounded text-[#8B949E] hover:text-[#F85149] transition-colors cursor-pointer"
-                        title="Delete Deck"
+                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
+                        title="Delete deck"
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
 
                       {/* Main Study CTA */}
                       <button
                         onClick={() => onSelectDeck(deck.id, due > 0 ? 'study' : 'editor')}
-                        className={`inline-flex items-center space-x-1 px-2 py-1 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                        className={`inline-flex items-center space-x-1.5 px-3 h-[44px] rounded text-[10px] font-bold tracking-wider transition-colors cursor-pointer ${
                           due > 0
                             ? 'bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F]'
                             : 'bg-[#21262D] text-white hover:bg-[#30363D] border border-[#30363D]'
                         }`}
                       >
-                        <span>{due > 0 ? 'STUDY' : 'MANAGE'}</span>
-                        <ArrowRight size={9} />
+                        <span>{due > 0 ? 'Study' : 'Manage'}</span>
+                        <ArrowRight size={10} />
                       </button>
                     </div>
                   </div>
