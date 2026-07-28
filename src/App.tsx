@@ -285,34 +285,29 @@ function AppInner() {
 
       <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col min-h-screen">
         <header className="pb-2 mb-3 border-b border-[#2D333B]">
-          {/* Row 1: Brand + Timer + Due (left) / Actions (right) */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              {/* Logo + Brand */}
+          {/* Three-zone layout: left (brand+timer) | center (nav) | right (actions) */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+            {/* Zone Left: Logo + brand + divider + timer + due */}
+            <div className="flex items-center gap-3 sm:gap-4">
               <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
                 <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#E3B341] overflow-hidden flex-shrink-0">
                   <img src={logoSrc} alt="CardifyA.I" className="w-full h-full object-cover" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs sm:text-sm font-bold text-white tracking-tight">CardifyA.I</span>
-                    {premiumState?.status === 'active' && (
-                      <span className="px-1 py-0.5 rounded bg-[#3FB950]/15 text-[#3FB950] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
-                    )}
-                    {premiumState?.status === 'trial' && (
-                      <span className="px-1 py-0.5 rounded bg-[#E3B341]/15 text-[#E3B341] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
-                    )}
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-sm font-bold text-white tracking-tight">CardifyA.I</span>
+                  {premiumState?.status === 'active' && (
+                    <span className="px-1 py-0.5 rounded bg-[#3FB950]/15 text-[#3FB950] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
+                  )}
+                  {premiumState?.status === 'trial' && (
+                    <span className="px-1 py-0.5 rounded bg-[#E3B341]/15 text-[#E3B341] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
+                  )}
                 </div>
               </div>
 
-              {/* Divider */}
               <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden sm:block"></span>
 
-              {/* Timer */}
               <HeaderTimer />
 
-              {/* Due badge */}
               {totalDueTodayCount > 0 && (
                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3B341]/10 text-[#E3B341] font-mono text-[10px] font-bold" title="Reviews due today">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#E3B341]"></span>
@@ -321,12 +316,45 @@ function AppInner() {
               )}
             </div>
 
-            {/* Right: actions (always visible) */}
-            <div className="flex items-center gap-1">
+            {/* Zone Center: Nav as segmented control */}
+            <nav className="flex items-center justify-center sm:justify-center flex-1 overflow-x-auto scrollbar-none">
+              <div className="flex items-center bg-[#161B22] rounded-lg p-0.5 border border-[#2D333B] gap-0.5">
+                {[
+                  { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
+                  ...(activeDeck ? [
+                    { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
+                    { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
+                    { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
+                  ] : []),
+                  { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
+                  { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={item.onClick}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+                        isActive
+                          ? 'text-white bg-[#0F1115] shadow-sm'
+                          : 'text-[#8B949E] hover:text-white'
+                      }`}
+                    >
+                      <Icon size={13} className={isActive ? 'text-[#E3B341]' : ''} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+
+            {/* Zone Right: Actions with consistent 16px gaps */}
+            <div className="flex items-center justify-end gap-4">
               {premiumState?.status === 'trial' && (
                 <button
                   onClick={() => setShowUpgrade(true)}
-                  className="px-2 py-1 rounded text-[#E3B341] hover:bg-[#E3B341]/10 text-[10px] font-bold font-mono uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded text-[#E3B341] hover:bg-[#E3B341]/10 text-[10px] font-bold font-mono uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
                   title="Upgrade to Premium"
                 >
                   <CreditCard size={12} />
@@ -335,64 +363,34 @@ function AppInner() {
               )}
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="p-1.5 rounded text-[#8B949E] hover:text-white hover:bg-[#1C2128] transition-colors cursor-pointer"
-                aria-label="Toggle Theme Mode"
+                className="flex items-center justify-center w-8 h-8 rounded text-[#8B949E] hover:text-white hover:bg-[#1C2128] transition-colors cursor-pointer"
+                aria-label="Toggle theme"
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
               </button>
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
                   alt="Profile"
-                  className="w-7 h-7 rounded-full border border-[#2D333B] object-cover"
+                  className="w-8 h-8 rounded-full border border-[#2D333B] object-cover"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-[#1C2128] flex items-center justify-center text-[10px] font-bold text-[#8B949E]">
+                <div className="w-8 h-8 rounded-full bg-[#1C2128] flex items-center justify-center text-[10px] font-bold text-[#8B949E]">
                   {(user?.email?.[0] || '?').toUpperCase()}
                 </div>
               )}
               <button
                 onClick={logout}
-                className="p-1.5 rounded text-[#8B949E] hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
+                className="flex items-center justify-center w-8 h-8 rounded text-[#8B949E] hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
                 aria-label="Log out"
                 title="Log out"
               >
-                <LogOut size={14} />
+                <LogOut size={15} />
               </button>
             </div>
           </div>
-
-          {/* Row 2: Nav — text-based, clean, centered */}
-          <nav className="flex items-center justify-center sm:justify-center overflow-x-auto flex-nowrap gap-0.5 mt-2 scrollbar-none">
-            {[
-              { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
-              ...(activeDeck ? [
-                { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
-                { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
-                { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
-              ] : []),
-              { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
-              { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
-            ].map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={item.onClick}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
-                    isActive
-                      ? 'text-white bg-[#1C2128]'
-                      : 'text-[#8B949E] hover:text-white hover:bg-[#1C2128]/50'
-                  }`}
-                >
-                  <Icon size={13} className={isActive ? 'text-[#E3B341]' : ''} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
         </header>
 
         {/* Trial countdown banner */}
