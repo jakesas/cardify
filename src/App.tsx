@@ -10,7 +10,7 @@ import { QuizScreen } from './components/QuizScreen';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import { HeaderTimer } from './components/HeaderTimer';
 import logoSrc from '/logo.png';
-import { Sun, Moon, Database, Activity, LayoutGrid, Sparkles, RefreshCcw, X, Wand2, Zap, LogOut, CreditCard } from 'lucide-react';
+import { Database, Activity, LayoutGrid, Sparkles, RefreshCcw, X, Wand2, Zap, LogOut, CreditCard } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
@@ -20,10 +20,6 @@ import { getPremiumState, activatePremium, type PremiumState } from './utils/pre
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('ccna_theme');
-    return (saved as 'dark' | 'light') || 'dark';
-  });
 
   const [decks, setDecks] = useState<Deck[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
@@ -31,7 +27,6 @@ function AppInner() {
   const [streakDays, setStreakDays] = useState<number>(0);
   const [premiumState, setPremiumState] = useState<PremiumState | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
-
 
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz'>('decks');
@@ -110,12 +105,6 @@ function AppInner() {
     const timer = setTimeout(() => setError(null), 5000);
     return () => clearTimeout(timer);
   }, [error]);
-
-  // Theme persistence
-  useEffect(() => {
-    localStorage.setItem('ccna_theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
 
   const handleReviewCard = async (cardId: string, rating: 1 | 2 | 3 | 4) => {
     try {
@@ -265,14 +254,8 @@ function AppInner() {
   }
 
   return (
-    <div className={`min-h-screen font-sans transition-colors duration-200 ${
-      theme === 'dark' 
-        ? 'bg-[#0F1115] text-[#E0E0E0] selection:bg-[#E3B341]/30 selection:text-white' 
-        : 'bg-slate-50 text-slate-900 selection:bg-cyan-500/20 selection:text-cyan-900'
-    }`}>
-      {theme === 'dark' && (
-        <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02] pointer-events-none z-0"></div>
-      )}
+    <div className="min-h-screen font-sans transition-colors duration-200 bg-[#0F1115] text-[#E0E0E0] selection:bg-[#E3B341]/30 selection:text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02] pointer-events-none z-0"></div>
 
       {error && (
         <div className="fixed top-4 right-4 z-50 flex items-center space-x-2 px-4 py-2 bg-[#F85149]/10 border border-[#F85149]/30 rounded text-xs font-mono text-[#F85149] shadow-lg animate-fade-in max-w-sm">
@@ -361,14 +344,6 @@ function AppInner() {
                   <span className="hidden sm:inline">Upgrade</span>
                 </button>
               )}
-              <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="flex items-center justify-center w-8 h-8 rounded text-[#8B949E] hover:text-white hover:bg-[#1C2128] transition-colors cursor-pointer"
-                aria-label="Toggle theme"
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              >
-                {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-              </button>
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
