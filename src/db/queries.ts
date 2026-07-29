@@ -91,21 +91,27 @@ export async function createCard(input: {
   return mapRowToCard(rows[0]);
 }
 
-export async function updateCard(cardId: string, fields: Partial<Card>): Promise<Card> {
-  const db = await getDb();
+function buildCardSetClauses(fields: Partial<Card>, params: any[]): string[] {
   const setParts: string[] = [];
-  const params: any[] = [];
-  
   if (fields.front !== undefined) { setParts.push('front = ?'); params.push(fields.front); }
   if (fields.back !== undefined) { setParts.push('back = ?'); params.push(fields.back); }
   if (fields.tag !== undefined) { setParts.push('tag = ?'); params.push(fields.tag); }
+  if (fields.deckId !== undefined) { setParts.push('deck_id = ?'); params.push(Number(fields.deckId)); }
   if (fields.imagePath !== undefined) { setParts.push('image_path = ?'); params.push(fields.imagePath); }
   if (fields.codeSnippet !== undefined) { setParts.push('code_snippet = ?'); params.push(fields.codeSnippet ? JSON.stringify(fields.codeSnippet) : null); }
   if (fields.topology !== undefined) { setParts.push('topology = ?'); params.push(fields.topology ? JSON.stringify(fields.topology) : null); }
-  
+  return setParts;
+}
+
+export async function updateCard(cardId: string, fields: Partial<Card>): Promise<Card> {
+  const db = await getDb();
+  const params: any[] = [];
+  const setParts = buildCardSetClauses(fields, params);
+  if (setParts.length === 0) throw new Error('No fields to update');
+
   setParts.push('updated_at = datetime(\'now\')');
   params.push(Number(cardId));
-  
+
   const rows = await db.select<any[]>(
     `UPDATE cards SET ${setParts.join(', ')} WHERE id = ? RETURNING *`,
     params
@@ -113,9 +119,34 @@ export async function updateCard(cardId: string, fields: Partial<Card>): Promise
   return mapRowToCard(rows[0]);
 }
 
+export async function updateCards(ids: string[], fields: Partial<Card>): Promise<Card[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  const params: any[] = [];
+  const setParts = buildCardSetClauses(fields, params);
+  if (setParts.length === 0) throw new Error('No fields to update');
+
+  setParts.push('updated_at = datetime(\'now\')');
+  const placeholders = ids.map(() => '?').join(', ');
+  ids.forEach(id => params.push(Number(id)));
+
+  const rows = await db.select<any[]>(
+    `UPDATE cards SET ${setParts.join(', ')} WHERE id IN (${placeholders}) RETURNING *`,
+    params
+  );
+  return rows.map(mapRowToCard);
+}
+
 export async function deleteCard(cardId: string): Promise<void> {
   const db = await getDb();
   await db.execute('DELETE FROM cards WHERE id = ?', [Number(cardId)]);
+}
+
+export async function deleteCards(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  const placeholders = ids.map(() => '?').join(', ');
+  await db.execute(`DELETE FROM cards WHERE id IN (${placeholders})`, ids.map(Number));
 }
 
 export async function submitReview(cardId: string, rating: 1 | 2 | 3 | 4): Promise<Card> {
