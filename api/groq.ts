@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MAX_RETRIES = 5;
+const MAX_DELAY_MS = 30_000;
 
 function b64url(s: string): string {
   s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -25,6 +27,28 @@ function json(res: ServerResponse, code: number, data: object) {
   res.end(JSON.stringify(data));
 }
 
+function getRetryAfterMs(headers: Headers): number {
+  const raw = headers.get('retry-after');
+  if (!raw) return 0;
+  const secs = parseInt(raw, 10);
+  return isNaN(secs) ? 0 : secs * 1000;
+}
+
+async function fetchWithRetry(url: string, opts: RequestInit, attempt = 1): Promise<Response> {
+  const res = await fetch(url, opts);
+
+  if (res.status === 429 && attempt <= MAX_RETRIES) {
+    const retryAfter = getRetryAfterMs(res.headers);
+    // exponential backoff: 2^attempt seconds + jitter, capped by retry-after header or max delay
+    const baseDelay = Math.min(2 ** attempt * 1000 + Math.random() * 1000, MAX_DELAY_MS);
+    const delay = retryAfter > 0 ? Math.max(retryAfter, baseDelay) : baseDelay;
+    await new Promise(r => setTimeout(r, delay));
+    return fetchWithRetry(url, opts, attempt + 1);
+  }
+
+  return res;
+}
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
     if (req.method !== 'POST') return void json(res, 405, { error: 'Method not allowed' });
@@ -37,7 +61,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     for await (const chunk of req) buffers.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(buffers).toString('utf-8'));
 
-    const groqRes = await fetch(GROQ_CHAT_URL, {
+    const groqRes = await fetchWithRetry(GROQ_CHAT_URL, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -45,8 +69,21 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     if (!groqRes.ok) {
       const detail = await groqRes.text().catch(() => '');
-      return void json(res, groqRes.status, { error: 'Groq API error', detail });
+      const remaining = groqRes.headers.get('x-ratelimit-remaining-requests');
+      const remainingTokens = groqRes.headers.get('x-ratelimit-remaining-tokens');
+      return void json(res, groqRes.status, {
+        error: 'Groq API error',
+        detail,
+        rateLimitRemaining: remaining ? parseInt(remaining, 10) : undefined,
+        rateLimitRemainingTokens: remainingTokens ? parseInt(remainingTokens, 10) : undefined,
+      });
     }
+
+    // Forward rate limit info via custom header so the client can pace itself
+    const remaining = groqRes.headers.get('x-ratelimit-remaining-requests');
+    const remainingTokens = groqRes.headers.get('x-ratelimit-remaining-tokens');
+    if (remaining) res.setHeader('X-RateLimit-Remaining', remaining);
+    if (remainingTokens) res.setHeader('X-RateLimit-Remaining-Tokens', remainingTokens);
 
     if (body.stream === true && groqRes.body) {
       res.setHeader('Content-Type', 'text/event-stream');

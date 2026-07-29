@@ -66,18 +66,28 @@ export function getAiConfig(): { apiKey: string; baseUrl?: string } | null {
 
 
 
-async function proxyRequest(body: object): Promise<any> {
+async function proxyFetch(path: string, body: object): Promise<Response> {
   const token = await getAuthToken();
-  const response = await fetch('/api/groq', {
+  return fetch(path, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
   });
+}
+
+async function proxyRequest(body: object, attempt = 1): Promise<any> {
+  const response = await proxyFetch('/api/groq', body);
+
   if (!response.ok) {
     const errText = await response.text().catch(() => '(no body)');
+    if (response.status === 429 && attempt <= 3) {
+      const delay = Math.min(2 ** attempt * 1000 + Math.random() * 1000, 15000);
+      await new Promise(r => setTimeout(r, delay));
+      return proxyRequest(body, attempt + 1);
+    }
     throw new Error(`${response.status} ${errText}`);
   }
   return response.json();
@@ -86,18 +96,17 @@ async function proxyRequest(body: object): Promise<any> {
 async function proxyStreamRequest(
   body: object,
   onChunk?: (text: string) => void,
+  attempt = 1,
 ): Promise<string> {
-  const token = await getAuthToken();
-  const response = await fetch('/api/groq', {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
+  const response = await proxyFetch('/api/groq', body);
+
   if (!response.ok) {
     const errText = await response.text().catch(() => '(no body)');
+    if (response.status === 429 && attempt <= 3) {
+      const delay = Math.min(2 ** attempt * 1000 + Math.random() * 1000, 15000);
+      await new Promise(r => setTimeout(r, delay));
+      return proxyStreamRequest(body, onChunk, attempt + 1);
+    }
     throw new Error(`Proxy error: ${response.status} ${errText}`);
   }
 
