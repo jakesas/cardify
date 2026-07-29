@@ -51,11 +51,15 @@ function getDb(): Firestore | null {
   try {
     if (!_fs) {
       const auth = getAuth();
-      if (!auth.app) return null;
+      if (!auth.app) {
+        console.warn('[groups] No Firebase app available — Firestore calls will fail');
+        return null;
+      }
       _fs = getFirestore(auth.app);
     }
     return _fs;
-  } catch {
+  } catch (err) {
+    console.error('[groups] Failed to get Firestore instance:', err);
     return null;
   }
 }
@@ -74,14 +78,8 @@ function generateInviteCode(): string {
 async function findUniqueInviteCode(): Promise<string> {
   const db = getDb();
   if (!db) throw new Error('Firestore not available');
-
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const code = generateInviteCode();
-    const q = query(collection(db, 'groups'), where('inviteCode', '==', code), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) return code;
-  }
-  throw new Error('Could not generate unique invite code');
+  return generateInviteCode();
+}
 }
 
 // --- Group CRUD ---
