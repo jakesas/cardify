@@ -138,8 +138,51 @@ async function setCachedCards(hash: string, data: any, keywords: string[]): Prom
 // ── Rate limiting (via Upstash Redis) ─────────────────
 
 const RL_PREFIX = 'rl:';
-const RL_WINDOW = 60;   // seconds
-const RL_MAX = 15;      // requests per window
+const RL_PREFIX_IP = 'rl:ip:';
+const RL_WINDOW = 60;       // seconds
+const RL_MAX = 15;          // requests per window (authenticated)
+const RL_IP_MAX = 30;       // requests per window (unauthenticated, per IP)
+
+function clientIP(req: IncomingMessage): string {
+  return (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim()
+    || req.socket.remoteAddress
+    || 'unknown';
+}
+
+async function checkIPRateLimit(req: IncomingMessage): Promise<
+  { ok: true } | { ok: false; retryAfter: number }
+> {
+  const base = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!base || !token) return { ok: true };
+
+  const key = `${RL_PREFIX_IP}${clientIP(req)}`;
+  const headers = { Authorization: `Bearer ${token}` };
+
+  try {
+    const res = await fetch(`${base}/incr/${key}`, { method: 'POST', headers });
+    if (!res.ok) return { ok: true };
+    const { result: count } = await res.json() as { result: number };
+
+    if (count === 1) {
+      fetch(`${base}/expire/${key}`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(RL_WINDOW),
+      }).catch(() => {});
+    }
+
+    if (count > RL_IP_MAX) {
+      const ttlRes = await fetch(`${base}/ttl/${key}`, { headers });
+      const { result: ttl } = await ttlRes.json() as { result: number };
+      return { ok: false, retryAfter: Math.max(1, ttl ?? RL_WINDOW) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: true };
+  }
+}
 
 async function checkRateLimit(uid: string): Promise<
   { ok: true; remaining: number } | { ok: false; retryAfter: number }
@@ -258,6 +301,12 @@ async function fetchWithRetry(url: string, opts: RequestInit, attempt = 1): Prom
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
+    const ipRl = await checkIPRateLimit(req);
+    if (!ipRl.ok) {
+      res.setHeader('Retry-After', String(ipRl.retryAfter));
+      return void json(res, 429, { error: 'Too many requests from this IP.', retryAfter: ipRl.retryAfter });
+    }
+
     if (req.method !== 'POST') return void json(res, 405, { error: 'Method not allowed' });
 
     const token = await verifyToken(req.headers.authorization);

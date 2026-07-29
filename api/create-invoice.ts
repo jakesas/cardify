@@ -11,7 +11,49 @@ function b64urlDecode(s: string): string {
 
 const RL_PREFIX_INV = 'rl:inv:';
 const RL_WINDOW_INV = 60;   // seconds
-const RL_MAX_INV = 5;       // invoice requests per window
+const RL_MAX_INV = 5;       // invoice requests per window (authenticated)
+const RL_IP_MAX_INV = 20;   // requests per window (unauthenticated, per IP)
+
+function clientIP(req: IncomingMessage): string {
+  return (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim()
+    || req.socket.remoteAddress
+    || 'unknown';
+}
+
+async function checkIPRateLimit(req: IncomingMessage): Promise<
+  { ok: true } | { ok: false; retryAfter: number }
+> {
+  const base = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!base || !token) return { ok: true };
+
+  const key = `rl:ip:${clientIP(req)}`;
+  const headers = { Authorization: `Bearer ${token}` };
+
+  try {
+    const res = await fetch(`${base}/incr/${key}`, { method: 'POST', headers });
+    if (!res.ok) return { ok: true };
+    const { result: count } = await res.json() as { result: number };
+
+    if (count === 1) {
+      fetch(`${base}/expire/${key}`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(RL_WINDOW_INV),
+      }).catch(() => {});
+    }
+
+    if (count > RL_IP_MAX_INV) {
+      const ttlRes = await fetch(`${base}/ttl/${key}`, { headers });
+      const { result: ttl } = await ttlRes.json() as { result: number };
+      return { ok: false, retryAfter: Math.max(1, ttl ?? RL_WINDOW_INV) };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: true };
+  }
+}
 
 async function checkRateLimit(uid: string): Promise<
   { ok: true; remaining: number } | { ok: false; retryAfter: number }
@@ -112,6 +154,12 @@ function json(res: ServerResponse, code: number, data: object) {
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
+    const ipRl = await checkIPRateLimit(req);
+    if (!ipRl.ok) {
+      res.setHeader('Retry-After', String(ipRl.retryAfter));
+      return void json(res, 429, { error: 'Too many requests from this IP.', retryAfter: ipRl.retryAfter });
+    }
+
     if (req.method !== 'POST') return void json(res, 405, { error: 'Method not allowed' });
 
     const decoded = await verifyToken(req.headers.authorization);
