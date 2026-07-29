@@ -1,4 +1,4 @@
-import { useState, useEffect, type FC } from 'react';
+import { useState, useEffect, useMemo, type FC } from 'react';
 import { Card, Deck, ReviewHistory } from '../types';
 import { calculateSM2, getLocalDateString, isDue } from '../utils/sm2';
 import { NetworkTopologyRenderer } from './NetworkTopologyRenderer';
@@ -6,6 +6,23 @@ import { RotateCcw, Keyboard, Lightbulb, Brain, Loader2 } from 'lucide-react';
 import { explainConcept, createGroqClient, getAiConfig } from '../utils/groq';
 import { getSetting } from '../db/queries';
 import { isFeatureAvailable } from '../utils/premium';
+
+/** Parse {{c1::answer}} cloze markers, returning parts: text before, hidden answer, text after */
+function parseCloze(text: string): { before: string; cloze: string; after: string }[] {
+  const parts: { before: string; cloze: string; after: string }[] = [];
+  const regex = /\{\{c\d+::([^}]+)\}\}/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const before = text.slice(lastIndex, match.index);
+    parts.push({ before, cloze: match[1], after: '' });
+    lastIndex = match.index + match[0].length;
+  }
+  if (parts.length > 0) {
+    parts[parts.length - 1].after = text.slice(lastIndex);
+  }
+  return parts;
+}
 
 interface ReviewScreenProps {
   deck: Deck;
@@ -297,9 +314,34 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-base md:text-lg font-bold text-white leading-relaxed tracking-tight font-mono">
-              {activeCard.front}
-            </h3>
+            {activeCard.cardType === 'cloze' ? (
+              /* Cloze: render hidden parts as [...] before reveal, full text after */
+              (() => {
+                const parts = parseCloze(activeCard.front);
+                if (parts.length === 0) {
+                  return <h3 className="text-base md:text-lg font-bold text-white leading-relaxed tracking-tight font-mono">{activeCard.front}</h3>;
+                }
+                return (
+                  <h3 className="text-base md:text-lg font-bold text-white leading-relaxed tracking-tight font-mono">
+                    {parts.map((p, i) => (
+                      <span key={i}>
+                        {p.before}
+                        {isRevealed ? (
+                          <span className="text-[#388BFD] bg-[#388BFD]/10 px-1 rounded">{p.cloze}</span>
+                        ) : (
+                          <span className="text-[#E3B341] bg-[#E3B341]/10 px-2 rounded select-none">[...]</span>
+                        )}
+                        {i === parts.length - 1 && p.after}
+                      </span>
+                    ))}
+                  </h3>
+                );
+              })()
+            ) : (
+              <h3 className="text-base md:text-lg font-bold text-white leading-relaxed tracking-tight font-mono">
+                {activeCard.front}
+              </h3>
+            )}
 
             {/* Topology renderer if provided */}
             {activeCard.topology && (
@@ -320,36 +362,52 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
         {/* Revealed Answer Box */}
         {isRevealed ? (
           <div className="mt-6 pt-5 border-t border-[#2D333B] space-y-3 animate-fade-in flex-grow">
-            <div className="flex items-center space-x-1.5 text-[#E3B341]">
-              <Lightbulb size={12} />
-              <span className="text-[9px] font-mono tracking-widest uppercase font-bold">Verified Answer Solution</span>
-            </div>
+            {activeCard.cardType === 'cloze' ? (
+              activeCard.back.trim() ? (
+                <>
+                  <div className="flex items-center space-x-1.5 text-[#8B949E]">
+                    <Lightbulb size={12} />
+                    <span className="text-[9px] font-mono tracking-widest uppercase font-bold">Extra Notes</span>
+                  </div>
+                  <div className="text-xs text-[#8B949E] leading-relaxed whitespace-pre-line font-mono">
+                    {activeCard.back}
+                  </div>
+                </>
+              ) : null
+            ) : (
+              <>
+              <div className="flex items-center space-x-1.5 text-[#E3B341]">
+                <Lightbulb size={12} />
+                <span className="text-[9px] font-mono tracking-widest uppercase font-bold">Verified Answer Solution</span>
+              </div>
 
-            <div className="text-xs text-[#E0E0E0] leading-relaxed space-y-2 whitespace-pre-line font-mono">
-              {/* Render answer details. If they have a config snippet, render code box */}
-              {activeCard.back.split('\n\n```').map((block, i) => {
-                if (i > 0 && block.includes('\n')) {
-                  const parts = block.split('```');
-                  const codeContent = parts[0];
-                  const remainingText = parts[1] || '';
+              <div className="text-xs text-[#E0E0E0] leading-relaxed space-y-2 whitespace-pre-line font-mono">
+                {/* Render answer details. If they have a config snippet, render code box */}
+                {activeCard.back.split('\n\n```').map((block, i) => {
+                  if (i > 0 && block.includes('\n')) {
+                    const parts = block.split('```');
+                    const codeContent = parts[0];
+                    const remainingText = parts[1] || '';
 
-                  // Strip language identifier e.g., "ios" or "json" from first line
-                  const lines = codeContent.split('\n');
-                  const hasLang = ['ios', 'json', 'bash', 'yaml'].includes(lines[0].trim());
-                  const finalCode = hasLang ? lines.slice(1).join('\n') : codeContent;
+                    // Strip language identifier e.g., "ios" or "json" from first line
+                    const lines = codeContent.split('\n');
+                    const hasLang = ['ios', 'json', 'bash', 'yaml'].includes(lines[0].trim());
+                    const finalCode = hasLang ? lines.slice(1).join('\n') : codeContent;
 
-                  return (
-                    <div key={i} className="space-y-2">
-                      <div className="rounded border border-[#30363D] bg-[#0D1117] p-3 font-mono text-[11px] text-[#388BFD] overflow-x-auto">
-                        <pre>{finalCode.trim()}</pre>
+                    return (
+                      <div key={i} className="space-y-2">
+                        <div className="rounded border border-[#30363D] bg-[#0D1117] p-3 font-mono text-[11px] text-[#388BFD] overflow-x-auto">
+                          <pre>{finalCode.trim()}</pre>
+                        </div>
+                        {remainingText && <p>{remainingText.trim()}</p>}
                       </div>
-                      {remainingText && <p>{remainingText.trim()}</p>}
-                    </div>
-                  );
-                }
-                return <p key={i}>{block}</p>;
-              })}
-            </div>
+                    );
+                  }
+                  return <p key={i}>{block}</p>;
+                })}
+              </div>
+              </>
+            )}
 
             {/* AI Tutor Explanation Section */}
             <div className="mt-4 pt-4 border-t border-[#2D333B]/50">

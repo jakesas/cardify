@@ -1,13 +1,17 @@
 import { useState, type FC } from 'react';
 import { Card, Deck, NetworkTopology } from '../types';
-import { Trash2, Edit3, ArrowLeft, Search, AlertCircle, FileText, Code } from 'lucide-react';
+import { Trash2, Edit3, ArrowLeft, Search, AlertCircle, FileText, Code, Upload } from 'lucide-react';
+import { CsvImportDialog, type CsvRow } from './CsvImportDialog';
 
 interface CardEditorScreenProps {
   deck: Deck;
+  decks?: Deck[];
   cards: Card[];
   onAddCard: (card: Omit<Card, 'id' | 'reps' | 'interval' | 'easeFactor' | 'dueDate'>) => void;
   onEditCard: (cardId: string, updated: Partial<Card>) => void;
   onDeleteCard: (cardId: string) => void;
+  onBatchDeleteCards?: (ids: string[]) => void;
+  onBatchUpdateCards?: (ids: string[], fields: Partial<Card>) => void;
   onGoBack: () => void;
 }
 
@@ -68,16 +72,20 @@ const TOPOLOGY_PRESETS: { name: string; value: string; topology: NetworkTopology
 
 export const CardEditorScreen: FC<CardEditorScreenProps> = ({
   deck,
+  decks = [],
   cards,
   onAddCard,
   onEditCard,
   onDeleteCard,
+  onBatchDeleteCards,
+  onBatchUpdateCards,
   onGoBack,
 }) => {
   const deckCards = cards.filter((c) => c.deckId === deck.id);
 
   // Form states
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [cardType, setCardType] = useState<'basic' | 'cloze'>('basic');
   const [frontText, setFrontText] = useState('');
   const [backText, setBackText] = useState('');
   const [selectedTag, setSelectedTag] = useState('General');
@@ -88,8 +96,96 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchTagInput, setBatchTagInput] = useState('');
+  const [batchTargetDeckId, setBatchTargetDeckId] = useState('');
+  const [batchMode, setBatchMode] = useState<'idle' | 'tag' | 'deck'>('idle');
+
+  const otherDecks = decks.filter(d => d.id !== deck.id);
+
+  const [showCsvImport, setShowCsvImport] = useState(false);
+
+  const filteredCards = deckCards.filter(
+    (c) =>
+      c.front.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.back.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.tag.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const allFilteredSelected = filteredCards.length > 0 && filteredCards.every(c => selectedIds.has(c.id));
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredCards.forEach(c => next.delete(c.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredCards.forEach(c => next.add(c.id));
+        return next;
+      });
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleCsvImport = async (rows: CsvRow[]): Promise<number> => {
+    let count = 0;
+    for (const row of rows) {
+      try {
+        await onAddCard({
+          deckId: deck.id,
+          front: row.front,
+          back: row.back,
+          tag: row.tag || selectedTag,
+          cardType: 'basic',
+        });
+        count++;
+      } catch {}
+    }
+    return count;
+  };
+
+  const handleBatchDelete = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected cards? This will reset all spacing statistics.`)) return;
+    onBatchDeleteCards?.(ids);
+    clearSelection();
+  };
+
+  const handleBatchTag = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || !batchTagInput.trim()) return;
+    onBatchUpdateCards?.(ids, { tag: batchTagInput.trim() as any });
+    setBatchTagInput('');
+    setBatchMode('idle');
+    clearSelection();
+  };
+
+  const handleBatchMove = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || !batchTargetDeckId) return;
+    onBatchUpdateCards?.(ids, { deckId: batchTargetDeckId });
+    setBatchTargetDeckId('');
+    setBatchMode('idle');
+    clearSelection();
+  };
+
   const handleEditInit = (card: Card) => {
     setEditingCardId(card.id);
+    setCardType(card.cardType || 'basic');
     setFrontText(card.front);
     setBackText(card.back);
     setSelectedTag(card.tag);
@@ -112,8 +208,16 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!frontText.trim() || !backText.trim()) {
-      setErrorMsg('Both Front and Back fields are required.');
+    if (!frontText.trim()) {
+      setErrorMsg('Front / text field is required.');
+      return;
+    }
+    if (cardType === 'basic' && !backText.trim()) {
+      setErrorMsg('Back / Answer field is required for basic cards.');
+      return;
+    }
+    if (cardType === 'cloze' && !/\{\{c\d+::/.test(frontText)) {
+      setErrorMsg('Cloze cards need at least one {{c1::answer}} marker in the text.');
       return;
     }
 
@@ -132,6 +236,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
     if (editingCardId) {
       // Edit
       onEditCard(editingCardId, {
+        cardType,
         front: frontText.trim(),
         back: backText.trim(),
         tag: selectedTag,
@@ -144,7 +249,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
       // Add
       onAddCard({
         deckId: deck.id,
-        cardType: 'basic',
+        cardType,
         front: frontText.trim(),
         back: backText.trim(),
         tag: selectedTag,
@@ -161,14 +266,6 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
     setCodeSnippetText('');
     setErrorMsg('');
   };
-
-  // Filter cards based on search query
-  const filteredCards = deckCards.filter(
-    (c) =>
-      c.front.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.back.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.tag.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -217,32 +314,54 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
+              {/* Card Type Toggle */}
+              <div className="flex items-center gap-2 p-1 rounded-lg bg-[#0D1117] border border-[#30363D] w-fit">
+                <button type="button" onClick={() => setCardType('basic')}
+                  className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${cardType === 'basic' ? 'bg-[#E3B341] text-[#0F1115]' : 'text-[#8B949E] hover:text-white'}`}>
+                  Basic
+                </button>
+                <button type="button" onClick={() => setCardType('cloze')}
+                  className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${cardType === 'cloze' ? 'bg-[#388BFD] text-white' : 'text-[#8B949E] hover:text-white'}`}>
+                  Cloze
+                </button>
+              </div>
+
               {/* Front Text */}
               <div className="space-y-1">
                 <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase block font-bold">
-                  Front / Question Content *
+                  {cardType === 'cloze' ? 'Text with Cloze Deletions *' : 'Front / Question Content *'}
                 </label>
                 <textarea
-                  placeholder="e.g., What command displays the configuration of active subinterfaces on Router-1?"
+                  placeholder={cardType === 'cloze' ? "The OSI model has {{c1::7}} layers. The {{c2::transport}} layer handles segmentation." : "e.g., What command displays the configuration of active subinterfaces on Router-1?"}
                   value={frontText}
                   onChange={(e) => setFrontText(e.target.value)}
                   className="w-full h-16 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
                   maxLength={300}
                 />
+                {cardType === 'cloze' && (
+                  <p className="text-[9px] font-mono text-[#388BFD]">
+                    Use {'{{c1::answer}}'} to mark hidden parts. Multiple clozes supported: {'{{c1::..}}{{c2::..}}'}
+                  </p>
+                )}
               </div>
 
               {/* Back Text */}
               <div className="space-y-1">
                 <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase block font-bold">
-                  Back / Answer & Explanation *
+                  Back / {cardType === 'cloze' ? 'Extra (optional)' : 'Answer & Explanation *'}
                 </label>
                 <textarea
-                  placeholder="Provide a detailed explanation. Code snippets can be placed here with Markdown ``` formatting."
+                  placeholder={cardType === 'cloze' ? "Add extra notes or context (optional for cloze cards)" : "Provide a detailed explanation. Code snippets can be placed here with Markdown ``` formatting."}
                   value={backText}
                   onChange={(e) => setBackText(e.target.value)}
                   className="w-full h-24 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
                   maxLength={1000}
                 />
+                {cardType === 'cloze' && (
+                  <p className="text-[9px] font-mono text-[#8B949E]">
+                    Back field is optional for cloze — the revealed answer comes from the front text.
+                  </p>
+                )}
               </div>
 
               {/* Tag Input */}
@@ -322,9 +441,79 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                 className="w-full pl-9 pr-3 py-1.5 rounded border border-[#30363D] bg-[#161B22] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600"
               />
             </div>
+            <button onClick={() => setShowCsvImport(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer whitespace-nowrap">
+              <Upload size={12} />
+              Import CSV
+            </button>
           </div>
 
+          {selectedIds.size > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 p-2 rounded border border-[#E3B341]/40 bg-[#E3B341]/5 animate-fade-in">
+              <span className="text-[10px] font-mono font-bold text-[#E3B341] whitespace-nowrap mr-1">
+                {selectedIds.size} selected
+              </span>
+              <button onClick={handleBatchDelete}
+                className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider text-[#F85149] hover:bg-[#F85149]/10 border border-[#F85149]/30 transition-colors cursor-pointer">
+                Delete
+              </button>
+              <button onClick={() => setBatchMode(batchMode === 'tag' ? 'idle' : 'tag')}
+                className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider text-[#388BFD] hover:bg-[#388BFD]/10 border border-[#388BFD]/30 transition-colors cursor-pointer">
+                Tag
+              </button>
+              {otherDecks.length > 0 && (
+                <button onClick={() => setBatchMode(batchMode === 'deck' ? 'idle' : 'deck')}
+                  className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider text-[#3FB950] hover:bg-[#3FB950]/10 border border-[#3FB950]/30 transition-colors cursor-pointer">
+                  Move
+                </button>
+              )}
+              <button onClick={clearSelection}
+                className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider text-[#8B949E] hover:bg-[#30363D] border border-[#30363D] transition-colors cursor-pointer ml-auto">
+                Clear
+              </button>
+            </div>
+          )}
+
+          {batchMode === 'tag' && (
+            <div className="flex items-center gap-2 p-2 rounded border border-[#388BFD]/30 bg-[#161B22] animate-slide-up">
+              <input type="text" value={batchTagInput} onChange={e => setBatchTagInput(e.target.value)}
+                placeholder="New tag for selected cards..."
+                className="flex-grow px-2 py-1 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-[11px] font-mono focus:outline-none focus:border-[#388BFD] placeholder-slate-600" />
+              <button onClick={handleBatchTag}
+                className="px-3 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[#388BFD] text-white hover:bg-[#388BFD]/80 transition-colors cursor-pointer disabled:opacity-30"
+                disabled={!batchTagInput.trim()}>
+                Apply
+              </button>
+            </div>
+          )}
+
+          {batchMode === 'deck' && (
+            <div className="flex items-center gap-2 p-2 rounded border border-[#3FB950]/30 bg-[#161B22] animate-slide-up">
+              <select value={batchTargetDeckId} onChange={e => setBatchTargetDeckId(e.target.value)}
+                className="flex-grow px-2 py-1 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-[11px] font-mono focus:outline-none focus:border-[#3FB950] cursor-pointer">
+                <option value="">Select target deck...</option>
+                {otherDecks.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <button onClick={handleBatchMove}
+                className="px-3 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[#3FB950] text-white hover:bg-[#3FB950]/80 transition-colors cursor-pointer disabled:opacity-30"
+                disabled={!batchTargetDeckId}>
+                Move
+              </button>
+            </div>
+          )}
+
           <div className="space-y-2 overflow-y-auto max-h-[480px] pr-1">
+            {filteredCards.length > 0 && (
+              <label className="flex items-center gap-2 px-1 py-1 cursor-pointer hover:bg-[#161B22] rounded border border-transparent hover:border-[#2D333B] transition-colors select-none">
+                <input type="checkbox" checked={allFilteredSelected}
+                  onChange={toggleSelectAll}
+                  className="w-3.5 h-3.5 rounded border-[#30363D] bg-[#0D1117] text-[#E3B341] focus:ring-0 accent-[#E3B341] cursor-pointer" />
+                <span className="text-[9px] font-mono text-[#8B949E] uppercase tracking-wider">
+                  {allFilteredSelected ? 'Deselect All' : 'Select All'} ({filteredCards.length} visible)
+                </span>
+              </label>
+            )}
+
             {filteredCards.length === 0 ? (
               <div className="text-center py-10 border border-dashed border-[#2D333B] bg-[#161B22]/10 rounded space-y-2">
                 <FileText size={20} className="text-[#8B949E] mx-auto" />
@@ -334,6 +523,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
             ) : (
               filteredCards.map((card) => {
                 const isEditingThis = card.id === editingCardId;
+                const isSelected = selectedIds.has(card.id);
 
                 return (
                   <div
@@ -341,10 +531,18 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                     className={`p-3 rounded border transition-colors duration-100 ${
                       isEditingThis
                         ? 'border-[#E3B341] bg-[#161B22]'
-                        : 'border-[#2D333B] hover:border-[#30363D] bg-[#161B22]'
+                        : isSelected
+                          ? 'border-[#E3B341]/50 bg-[#E3B341]/5'
+                          : 'border-[#2D333B] hover:border-[#30363D] bg-[#161B22]'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2 sm:gap-4">
+                    <div className="flex items-start justify-between gap-2 sm:gap-1">
+                      <label className="flex-shrink-0 pt-1 cursor-pointer select-none">
+                        <input type="checkbox" checked={isSelected}
+                          onChange={() => toggleSelect(card.id)}
+                          className="w-3.5 h-3.5 rounded border-[#30363D] bg-[#0D1117] text-[#E3B341] focus:ring-0 accent-[#E3B341] cursor-pointer" />
+                      </label>
+
                       <div className="space-y-1.5 min-w-0 flex-grow">
                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                           <span className="px-1 py-0.5 rounded text-[7px] sm:text-[8px] font-mono bg-[#0D1117] border border-[#30363D] text-[#8B949E] font-bold uppercase flex-shrink-0">
@@ -353,6 +551,11 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                           <span className="text-[8px] sm:text-[9px] font-mono text-[#8B949E] truncate min-w-0">
                             R:{card.reps} I:{card.interval}d D:{card.dueDate}
                           </span>
+                          {card.cardType === 'cloze' && (
+                            <span className="px-1 py-0.5 rounded text-[7px] font-mono bg-[#388BFD]/15 text-[#388BFD] border border-[#388BFD]/20 flex-shrink-0">
+                              CLZ
+                            </span>
+                          )}
                           {card.topology && (
                             <span className="px-1 py-0.5 rounded text-[7px] font-mono bg-[#388BFD]/10 text-[#388BFD] border border-[#388BFD]/20 flex-shrink-0">
                               DG
@@ -406,6 +609,15 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
           </div>
         </div>
       </div>
+
+      {showCsvImport && (
+        <CsvImportDialog
+          deckId={deck.id}
+          defaultTag={selectedTag}
+          onImport={handleCsvImport}
+          onClose={() => setShowCsvImport(false)}
+        />
+      )}
     </div>
   );
 };
