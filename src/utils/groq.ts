@@ -1,4 +1,15 @@
 import Groq from 'groq-sdk';
+import { getAuth } from 'firebase/auth';
+
+async function getAuthToken(): Promise<string | null> {
+  try {
+    const auth = getAuth();
+    const user = auth.currentUser;
+    return user ? await user.getIdToken() : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface GeneratedCard {
   front: string;
@@ -56,9 +67,13 @@ export function getAiConfig(): { apiKey: string; baseUrl?: string } | null {
 
 
 async function proxyRequest(body: object): Promise<any> {
+  const token = await getAuthToken();
   const response = await fetch('/api/groq', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -72,9 +87,13 @@ async function proxyStreamRequest(
   body: object,
   onChunk?: (text: string) => void,
 ): Promise<string> {
+  const token = await getAuthToken();
   const response = await fetch('/api/groq', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {

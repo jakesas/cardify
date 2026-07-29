@@ -42,9 +42,13 @@ export const PaymentScreen: FC<PaymentScreenProps> = ({ onPaid, onSkip, isUpgrad
     setError('');
     try {
       const plan = PLANS.find(p => p.id === selectedPlan)!;
+      const token = await user?.getIdToken();
       const res = await fetch(XENDIT_INVOICE_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           userId: user?.uid,
           email: user?.email,
