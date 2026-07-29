@@ -103,17 +103,19 @@ export async function uploadSharedDeck(
     const user = auth.currentUser;
     if (!user) return { success: false, error: 'You must be logged in to share a deck' };
 
-    const docRef = await addDoc(collection(db, 'shared-decks'), {
+    const cleanCards = cards.map(c => JSON.parse(JSON.stringify(c)));
+
+    const docRef = await withTimeout(addDoc(collection(db, 'shared-decks'), {
       title,
       description: description || `${cards.length} cards — imported from CCNA SRS`,
       authorName: user.displayName || user.email || 'Anonymous',
       authorId: user.uid,
       tags,
       cardCount: cards.length,
-      cards,
+      cards: cleanCards,
       createdAt: Timestamp.now(),
       downloads: 0,
-    });
+    }), 15000, 'uploadSharedDeck');
 
     return { success: true, data: docRef.id };
   } catch (err: any) {

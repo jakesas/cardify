@@ -384,11 +384,13 @@ export async function uploadGroupDeck(
     const user = auth.currentUser;
     if (!user) return { success: false, error: 'You must be logged in' };
 
+    const cleanCards = cards.map(c => JSON.parse(JSON.stringify(c)));
+
     const docRef = await withTimeout(addDoc(collection(db, 'group-decks'), {
       groupId,
       title,
       description: description || `${cards.length} cards`,
-      cards,
+      cards: cleanCards,
       createdBy: user.uid,
       authorName: user.displayName || user.email || 'Anonymous',
       visibility,
