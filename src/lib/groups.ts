@@ -186,16 +186,16 @@ export async function listUserGroups(userId: string): Promise<GroupResult<(Group
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    // Find all approved memberships for this user
+    // Query by userId only (single-field, no composite index needed), filter status client-side
     const memberSnap = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('userId', '==', userId),
-      where('status', '==', 'approved'),
     )), 15000, 'listUserGroups:memberships');
 
-    const groupIds = [...new Set(memberSnap.docs.map(d => d.data().groupId))];
+    const approvedDocs = memberSnap.docs.filter(d => d.data().status === 'approved');
+    const groupIds = [...new Set(approvedDocs.map(d => d.data().groupId))];
     const roleMap = new Map<string, string>();
-    memberSnap.docs.forEach(d => {
+    approvedDocs.forEach(d => {
       const data = d.data();
       if (!roleMap.has(data.groupId)) {
         roleMap.set(data.groupId, data.role);
@@ -210,12 +210,12 @@ export async function listUserGroups(userId: string): Promise<GroupResult<(Group
       const g = await withTimeout(getDoc(doc(db, 'groups', gid)), 10000, 'listUserGroups:getGroup');
       if (!g.exists()) continue;
 
-      // Count approved members
-      const memberCountSnap = await withTimeout(getDocs(query(
+      // Query by groupId only, filter approved client-side
+      const allMemberDocs = await withTimeout(getDocs(query(
         collection(db, 'group-members'),
         where('groupId', '==', gid),
-        where('status', '==', 'approved'),
       )), 10000, 'listUserGroups:memberCount');
+      const memberCountSnap = allMemberDocs.filter(d => d.data().status === 'approved');
 
       groups.push({
         id: g.id,
@@ -242,13 +242,12 @@ export async function requestJoinGroup(groupId: string): Promise<GroupResult<voi
     const user = auth.currentUser;
     if (!user) return { success: false, error: 'You must be logged in to join a group' };
 
-    // Check if already a member or has pending request
-    const existing = await withTimeout(getDocs(query(
+    // Check if already a member or has pending request (query by groupId only, filter userId client-side)
+    const allGroupMembers = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('groupId', '==', groupId),
-      where('userId', '==', user.uid),
-      limit(1),
     )), 15000, 'requestJoinGroup:checkExisting');
+    const existing = allGroupMembers.filter(d => d.data().userId === user.uid);
 
     if (!existing.empty) {
       const status = existing.docs[0].data().status;
@@ -330,10 +329,14 @@ export async function listMembers(groupId: string): Promise<GroupResult<GroupMem
     const snap = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('groupId', '==', groupId),
-      orderBy('joinedAt', 'desc'),
     )), 15000, 'listMembers');
 
     const members: GroupMember[] = snap.docs.map(d => ({ id: d.id, ...d.data() } as GroupMember));
+    members.sort((a, b) => {
+      const ta = a.joinedAt?.toMillis?.() || 0;
+      const tb = b.joinedAt?.toMillis?.() || 0;
+      return tb - ta;
+    });
     return { success: true, data: members };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to list members' };
@@ -348,11 +351,16 @@ export async function getPendingApprovals(groupId: string): Promise<GroupResult<
     const snap = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('groupId', '==', groupId),
-      where('status', '==', 'pending'),
-      orderBy('joinedAt', 'asc'),
     )), 15000, 'getPendingApprovals');
 
-    const members: GroupMember[] = snap.docs.map(d => ({ id: d.id, ...d.data() } as GroupMember));
+    const members: GroupMember[] = snap.docs
+      .filter(d => d.data().status === 'pending')
+      .map(d => ({ id: d.id, ...d.data() } as GroupMember));
+    members.sort((a, b) => {
+      const ta = a.joinedAt?.toMillis?.() || 0;
+      const tb = b.joinedAt?.toMillis?.() || 0;
+      return ta - tb;
+    });
     return { success: true, data: members };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to get pending approvals' };
@@ -402,7 +410,6 @@ export async function listGroupDecks(groupId: string): Promise<GroupResult<Group
     const snap = await withTimeout(getDocs(query(
       collection(db, 'group-decks'),
       where('groupId', '==', groupId),
-      orderBy('createdAt', 'desc'),
     )), 15000, 'listGroupDecks');
 
     const decks: GroupDeck[] = snap.docs.map(d => {
@@ -419,6 +426,11 @@ export async function listGroupDecks(groupId: string): Promise<GroupResult<Group
         createdAt: data.createdAt,
         downloads: data.downloads || 0,
       } as GroupDeck;
+    });
+    decks.sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() || 0;
+      const tb = b.createdAt?.toMillis?.() || 0;
+      return tb - ta;
     });
 
     return { success: true, data: decks };
@@ -472,12 +484,11 @@ export async function listPublicDecks(max = 50): Promise<GroupResult<GroupDeck[]
     const snap = await withTimeout(getDocs(query(
       collection(db, 'group-decks'),
       where('visibility', '==', 'public'),
-      orderBy('downloads', 'desc'),
-      limit(max),
     )), 15000, 'listPublicDecks');
 
     const decks: GroupDeck[] = snap.docs.map(d => ({ id: d.id, ...d.data() } as GroupDeck));
-    return { success: true, data: decks };
+    decks.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
+    return { success: true, data: decks.slice(0, max) };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to list public decks' };
   }
