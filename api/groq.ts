@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { hashText, extractKeywords, getCachedByHash, getCachedByKeywords, setCachedCards } from './_cache';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MAX_RETRIES = 5;
@@ -61,6 +62,28 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     for await (const chunk of req) buffers.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(buffers).toString('utf-8'));
 
+    // Extract study text and check cache
+    const msgs = body.messages ?? [];
+    const userMsg = msgs.filter((m: any) => m.role === 'user').pop()?.content || '';
+    const studyText = userMsg.replace(/^Generate flashcards from this study material:\s*\n*/i, '');
+    let cacheHash: string | undefined;
+    let cacheKeywords: string[] | undefined;
+
+    if (studyText.length >= 20) {
+      cacheHash = hashText(studyText);
+      const exactHit = await getCachedByHash(cacheHash);
+      if (exactHit) {
+        res.setHeader('X-Cache', 'HIT');
+        return void json(res, 200, exactHit.data);
+      }
+      cacheKeywords = extractKeywords(studyText);
+      const fuzzyHit = await getCachedByKeywords(cacheKeywords);
+      if (fuzzyHit) {
+        res.setHeader('X-Cache', 'FUZZY');
+        return void json(res, 200, fuzzyHit.data);
+      }
+    }
+
     const groqRes = await fetchWithRetry(GROQ_CHAT_URL, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -102,6 +125,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     const data = await groqRes.json();
+
+    // Cache the result for future identical/similar requests
+    if (cacheHash && cacheKeywords && data?.choices?.[0]?.message?.content) {
+      setCachedCards(cacheHash, data, cacheKeywords).catch(() => {});
+    }
+
     json(res, 200, data);
   } catch (err: any) {
     json(res, 500, { error: err?.message || 'Internal error' });
