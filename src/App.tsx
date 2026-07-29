@@ -509,11 +509,10 @@ function AppInner() {
         <nav className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#0F1115] border-t border-[#2D333B] flex items-center justify-around px-2 py-1.5 safe-area-bottom">
           {[
             { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
-            { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
             { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
+            { key: 'ai', icon: Wand2, label: 'AI', centered: true, onClick: () => setActiveTab('ai') },
             { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
-            { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
-          ].slice(0, 4).map((item) => {
+          ].map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
             return (
@@ -521,15 +520,23 @@ function AppInner() {
                 key={item.key}
                 onClick={item.onClick}
                 className={`flex flex-col items-center gap-0.5 py-1 px-3 min-w-0 transition-colors cursor-pointer ${
+                  item.centered ? '-mt-2' : ''
+                } ${
                   isActive
                     ? 'text-[#E3B341]'
                     : 'text-[#8B949E] hover:text-white'
                 }`}
               >
-                <Icon size={18} />
+                <div className={`flex items-center justify-center rounded-xl p-1.5 transition-colors ${
+                  isActive
+                    ? 'bg-[#E3B341]/15'
+                    : item.centered ? 'bg-[#1C2128]' : ''
+                }`}>
+                  <Icon size={item.centered ? 20 : 18} />
+                </div>
                 <span className={`text-[9px] font-medium font-mono ${
                   isActive ? 'font-bold' : ''
-                }`}>
+                } ${item.centered ? 'text-[10px]' : ''}`}>
                   {item.label}
                 </span>
                 {isActive && <span className="w-4 h-0.5 rounded-full bg-[#E3B341] mt-0.5" />}
@@ -562,7 +569,7 @@ function AppInner() {
                     ] : []),
                     { key: 'public', icon: BookOpen, label: 'Public', onClick: () => { setActiveTab('public'); setShowMobileMenu(false); } },
                     { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => { setActiveTab('stats'); setShowMobileMenu(false); } },
-                    { key: 'ai', icon: Wand2, label: 'AI', onClick: () => { setActiveTab('ai'); setShowMobileMenu(false); } },
+                    { key: 'search', icon: Search, label: 'Search', onClick: () => { setActiveTab('search'); setShowMobileMenu(false); } },
                   ].map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.key;

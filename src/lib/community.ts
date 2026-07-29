@@ -1,5 +1,14 @@
-import { getFirestore, collection, query, orderBy, limit, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, type Firestore } from 'firebase/firestore';
+import { getFirestore, collection, query, limit, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, type Firestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Operation "${label}" timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 export interface SharedDeckMeta {
   id: string;
@@ -52,12 +61,18 @@ export async function listSharedDecks(max = 50): Promise<CommunityResult<SharedD
     const db = getCommunityDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    const q = query(collection(db, 'shared-decks'), orderBy('downloads', 'desc'), limit(max));
-    const snapshot = await getDocs(q);
+    // Avoid orderBy to prevent Firestore index issues — sort client-side
+    const q = query(collection(db, 'shared-decks'), limit(max * 2));
+    const snapshot = await withTimeout(getDocs(q), 15000, 'listSharedDecks');
     const decks: SharedDeckMeta[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SharedDeckMeta));
-    return { success: true, data: decks };
+    decks.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
+    return { success: true, data: decks.slice(0, max) };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Failed to list shared decks' };
+    const msg = err?.message || '';
+    if (msg.includes('timed out')) {
+      return { success: false, error: 'Request timed out. Make sure Firestore is enabled in your Firebase Console (flashpoint-ccna).' };
+    }
+    return { success: false, error: msg || 'Failed to list shared decks' };
   }
 }
 

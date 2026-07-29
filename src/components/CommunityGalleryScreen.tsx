@@ -18,6 +18,7 @@ export const CommunityGalleryScreen: FC<CommunityGalleryScreenProps> = ({ userId
   const [importing, setImporting] = useState(false);
   const [importDone, setImportDone] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -31,7 +32,7 @@ export const CommunityGalleryScreen: FC<CommunityGalleryScreenProps> = ({ userId
       }
       setLoading(false);
     })();
-  }, []);
+  }, [refreshKey]);
 
   const allDecks: SharedDeckMeta[] = useFirestore ? firestoreDecks : DEMO_DECKS_META;
 
@@ -162,7 +163,7 @@ export const CommunityGalleryScreen: FC<CommunityGalleryScreenProps> = ({ userId
           <h2 className="text-sm font-bold text-white uppercase mt-0.5">Shared Decks</h2>
         </div>
         {userId && (
-          <button onClick={() => setShowUpload(!showUpload)}
+          <button onClick={() => { setShowUpload(!showUpload); setError(''); }}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer">
             <Upload size={12} /> Share a Deck
           </button>
@@ -171,7 +172,7 @@ export const CommunityGalleryScreen: FC<CommunityGalleryScreenProps> = ({ userId
 
       {/* Upload dialog */}
       {showUpload && (
-        <UploadDialog userId={userId} onClose={() => setShowUpload(false)} />
+        <UploadDialog userId={userId} onClose={() => { setShowUpload(false); setRefreshKey(k => k + 1); }} />
       )}
 
       {/* Search */}

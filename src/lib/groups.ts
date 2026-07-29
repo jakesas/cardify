@@ -64,6 +64,17 @@ function getDb(): Firestore | null {
   }
 }
 
+// --- Timeout helper (Firestore calls can hang indefinitely) ---
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Operation "${label}" timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 // --- Invite code generation ---
 
 function generateInviteCode(): string {
@@ -94,24 +105,32 @@ export async function createGroup(name: string, description: string): Promise<Gr
 
     const inviteCode = await findUniqueInviteCode();
 
-    const groupRef = await addDoc(collection(db, 'groups'), {
-      name,
-      description: description || `${name} study group`,
-      createdBy: user.uid,
-      createdAt: Timestamp.now(),
-      inviteCode,
-    });
+    const groupRef = await withTimeout(
+      addDoc(collection(db, 'groups'), {
+        name,
+        description: description || `${name} study group`,
+        createdBy: user.uid,
+        createdAt: Timestamp.now(),
+        inviteCode,
+      }),
+      15000,
+      'createGroup:addDoc(groups)',
+    );
 
     // Create admin membership
-    await addDoc(collection(db, 'group-members'), {
-      groupId: groupRef.id,
-      userId: user.uid,
-      displayName: user.displayName || user.email || 'Anonymous',
-      email: user.email || '',
-      role: 'admin',
-      status: 'approved',
-      joinedAt: Timestamp.now(),
-    });
+    await withTimeout(
+      addDoc(collection(db, 'group-members'), {
+        groupId: groupRef.id,
+        userId: user.uid,
+        displayName: user.displayName || user.email || 'Anonymous',
+        email: user.email || '',
+        role: 'admin',
+        status: 'approved',
+        joinedAt: Timestamp.now(),
+      }),
+      15000,
+      'createGroup:addDoc(group-members)',
+    );
 
     const newGroup: Group = {
       id: groupRef.id,
@@ -124,7 +143,11 @@ export async function createGroup(name: string, description: string): Promise<Gr
 
     return { success: true, data: newGroup };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Failed to create group' };
+    const msg = err?.message || '';
+    if (msg.includes('timed out')) {
+      return { success: false, error: 'Request timed out. Make sure Firestore is enabled in your Firebase Console (flashpoint-ccna) and you are logged in.' };
+    }
+    return { success: false, error: msg || 'Failed to create group' };
   }
 }
 
