@@ -726,7 +726,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                       <span className="text-[9px] font-mono font-bold text-[#8B949E]">#{idx + 1}</span>
                       <input
                         type="text"
-                        value={card.tag}
+                        value={card.tag ?? ''}
                         onChange={(e) => updateCardTag(idx, e.target.value)}
                         placeholder="Enter topic tag..."
                         className="px-1.5 py-0.5 rounded border border-[#30363D] bg-[#0D1117] text-[#8B949E] text-[8px] font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 w-24"
