@@ -90,7 +90,12 @@ async function proxyRequest(body: object, attempt = 1): Promise<any> {
     }
     throw new Error(`${response.status} ${errText}`);
   }
-  return response.json();
+
+  const text = await response.text();
+  if (!text) throw new Error('AI service returned an empty response. Try again in a moment.');
+  try { return JSON.parse(text); } catch {
+    throw new Error(`AI service returned unexpected data (${text.slice(0, 80)}...). Try again.`);
+  }
 }
 
 async function proxyStreamRequest(

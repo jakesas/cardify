@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Replicates the same INCR → check → EXPIRE → TTL logic used in api/groq.ts
 // Tests the core algorithm without needing node:http imports.
