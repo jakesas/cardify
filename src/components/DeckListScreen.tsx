@@ -1,6 +1,6 @@
 import { useState, type FC } from 'react';
 import { Deck, Card } from '../types';
-import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2 } from 'lucide-react';
+import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
 
 interface DeckListScreenProps {
@@ -11,6 +11,7 @@ interface DeckListScreenProps {
   onDeleteDeck: (deckId: string) => void;
   onResetToDefaults: () => void;
   onShareDeck: (deckId: string) => void;
+  onShareToGroup: (deckId: string) => void;
 }
 
 export const DeckListScreen: FC<DeckListScreenProps> = ({
@@ -21,6 +22,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   onDeleteDeck,
   onResetToDefaults,
   onShareDeck,
+  onShareToGroup,
 }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
@@ -237,6 +239,15 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                         title="Share deck link"
                       >
                         <Share2 size={14} />
+                      </button>
+
+                      {/* Share to Group */}
+                      <button
+                        onClick={() => onShareToGroup(deck.id)}
+                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#58A6FF] hover:bg-[#58A6FF]/10 transition-colors cursor-pointer"
+                        title="Share to study group"
+                      >
+                        <Users size={14} />
                       </button>
 
                       {/* Main Study CTA */}

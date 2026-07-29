@@ -12,15 +12,23 @@ import { SearchScreen } from './components/SearchScreen';
 import { CommunityGalleryScreen } from './components/CommunityGalleryScreen';
 import { ShareDeckDialog } from './components/ShareDeckDialog';
 import { ImportLinkScreen } from './components/ImportLinkScreen';
+import { GroupListScreen } from './components/GroupListScreen';
+import { GroupDetailScreen } from './components/GroupDetailScreen';
+import { PublicDeckScreen } from './components/PublicDeckScreen';
+import { CreateGroupDialog } from './components/CreateGroupDialog';
+import { JoinGroupDialog } from './components/JoinGroupDialog';
+import { GroupDeckUploadDialog } from './components/GroupDeckUploadDialog';
+import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import logoSrc from '/logo.png';
-import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe } from 'lucide-react';
+import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe, Users, BookOpen } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
 import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
 import { getDb, setDbUser } from './db/client';
 import { getPremiumState, activatePremium, type PremiumState } from './utils/premium';
+import { listUserGroups } from './lib/groups';
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -33,10 +41,15 @@ function AppInner() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'groups' | 'group-detail' | 'public'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [shareDeckId, setShareDeckId] = useState<string | null>(null);
   const [importDeckShareId, setImportDeckShareId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [joinGroupCode, setJoinGroupCode] = useState<string | null>(null);
+  const [pendingShareDeckId, setPendingShareDeckId] = useState<string | null>(null);
+  const [groupUploadGroupId, setGroupUploadGroupId] = useState<string | null>(null);
 
   // Initialize database and load data — scoped per user
   useEffect(() => {
@@ -75,6 +88,18 @@ function AppInner() {
     const importId = params.get('import');
     if (importId) {
       setImportDeckShareId(importId);
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  }, [user]);
+
+  // Detect ?join= parameter from group invite links
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get('join');
+    if (joinCode) {
+      setJoinGroupCode(joinCode.toUpperCase());
       const cleanUrl = window.location.pathname + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -253,6 +278,21 @@ function AppInner() {
     setShareDeckId(deckId);
   };
 
+  const handleShareToGroup = (deckId: string) => {
+    setPendingShareDeckId(deckId);
+  };
+
+  const handleGroupCreated = () => {
+    setShowCreateGroup(false);
+    setActiveTab('groups');
+  };
+
+  const handleGroupDeckUploaded = () => {
+    setGroupUploadGroupId(null);
+    setPendingShareDeckId(null);
+    // Refresh via re-render if on group detail tab
+  };
+
   const handleResetToDefaults = async () => {
     if (confirm('Are you sure you want to delete ALL data? This cannot be undone.')) {
       try {
@@ -398,6 +438,8 @@ function AppInner() {
                   ] : []),
                   { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
                   { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
+                  { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
+                  { key: 'public', icon: BookOpen, label: 'Public', onClick: () => setActiveTab('public') },
                   { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
                   { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
                 ].map((item) => {
@@ -467,6 +509,8 @@ function AppInner() {
             { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
             { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
             { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
+            { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
+            { key: 'public', icon: BookOpen, label: 'Public', onClick: () => setActiveTab('public') },
             { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
             { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
           ].map((item) => {
@@ -512,6 +556,7 @@ function AppInner() {
               onDeleteDeck={handleDeleteDeck}
               onResetToDefaults={handleResetToDefaults}
               onShareDeck={handleShareDeck}
+              onShareToGroup={handleShareToGroup}
             />
           )}
 
@@ -585,6 +630,32 @@ function AppInner() {
             />
           )}
 
+          {activeTab === 'groups' && (
+            <GroupListScreen
+              userId={user?.uid}
+              onCreateGroup={() => setShowCreateGroup(true)}
+              onSelectGroup={(gid) => { setSelectedGroupId(gid); setActiveTab('group-detail'); }}
+              onGoBack={() => setActiveTab('decks')}
+            />
+          )}
+
+          {activeTab === 'group-detail' && selectedGroupId && (
+            <GroupDetailScreen
+              groupId={selectedGroupId}
+              userId={user?.uid}
+              onGoBack={() => setActiveTab('groups')}
+              onImportDeck={handleImportCommunityDeck}
+              onShowUpload={(gid) => setGroupUploadGroupId(gid)}
+            />
+          )}
+
+          {activeTab === 'public' && (
+            <PublicDeckScreen
+              onGoBack={() => setActiveTab('decks')}
+              onImportDeck={handleImportCommunityDeck}
+            />
+          )}
+
           {activeTab === 'stats' && (
             <StatsScreen
               cards={cards}
@@ -624,6 +695,40 @@ function AppInner() {
             deckShareId={importDeckShareId}
             onImportDeck={handleImportCommunityDeck}
             onDismiss={() => setImportDeckShareId(null)}
+          />
+        )}
+
+        {showCreateGroup && (
+          <CreateGroupDialog
+            onClose={() => setShowCreateGroup(false)}
+            onCreated={handleGroupCreated}
+          />
+        )}
+
+        {joinGroupCode && (
+          <JoinGroupDialog
+            inviteCode={joinGroupCode}
+            onDismiss={() => setJoinGroupCode(null)}
+            onJoined={() => setJoinGroupCode(null)}
+          />
+        )}
+
+        {pendingShareDeckId && !groupUploadGroupId && (
+          <GroupPickerDialog
+            userId={user?.uid}
+            onSelect={(gid) => setGroupUploadGroupId(gid)}
+            onClose={() => setPendingShareDeckId(null)}
+          />
+        )}
+
+        {groupUploadGroupId && (
+          <GroupDeckUploadDialog
+            groupId={groupUploadGroupId}
+            groupName={''}
+            decks={decks}
+            cards={cards}
+            onClose={() => { setGroupUploadGroupId(null); setPendingShareDeckId(null); }}
+            onUploaded={handleGroupDeckUploaded}
           />
         )}
 
