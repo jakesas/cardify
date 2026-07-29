@@ -179,12 +179,6 @@ async function checkRateLimit(uid: string): Promise<
 
 // ── Helpers ────────────────────────────────────────────
 
-function b64url(s: string): string {
-  s = s.replace(/-/g, '+').replace(/_/g, '/');
-  while (s.length % 4) s += '=';
-  return Buffer.from(s, 'base64').toString('utf-8');
-}
-
 function b64urlDecode(s: string): string {
   return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
 }
