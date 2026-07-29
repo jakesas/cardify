@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Deck, Card, ReviewHistory, ExamDomain } from './types';
-import { getLocalDateString, isDue } from './utils/sm2';
+
 import { DeckListScreen } from './components/DeckListScreen';
 import { StudyMaterialScreen } from './components/StudyMaterialScreen';
 import { ReviewScreen } from './components/ReviewScreen';
@@ -8,7 +8,6 @@ import { CardEditorScreen } from './components/CardEditorScreen';
 import { StatsScreen } from './components/StatsScreen';
 import { QuizScreen } from './components/QuizScreen';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
-import { HeaderTimer } from './components/HeaderTimer';
 import logoSrc from '/logo.png';
 import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -205,8 +204,6 @@ function AppInner() {
   };
 
   const activeDeck = decks.find(d => d.id === selectedDeckId);
-  const todayStr = getLocalDateString();
-  const totalDueTodayCount = cards.filter(c => isDue(c.dueDate, todayStr)).length;
 
   if (authLoading) {
     return (
@@ -270,7 +267,7 @@ function AppInner() {
         <header className="pb-2 mb-3 border-b border-[#2D333B]">
           {/* Three-zone layout: left (brand+timer) | center (nav) | right (actions) */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
-            {/* Zone Left: Logo + brand + timer + due + mobile actions */}
+            {/* Zone Left: Logo + brand + mobile actions */}
             <div className="flex items-center justify-between w-full sm:w-auto">
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
@@ -289,15 +286,6 @@ function AppInner() {
                 </div>
 
                 <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden sm:block"></span>
-
-                <HeaderTimer />
-
-                {totalDueTodayCount > 0 && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3B341]/10 text-[#E3B341] font-mono text-[10px] font-bold" title="Reviews due today">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#E3B341]"></span>
-                    <span>{totalDueTodayCount}</span>
-                  </div>
-                )}
               </div>
 
               {/* Mobile: avatar + logout inline in top row */}
