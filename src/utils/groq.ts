@@ -92,7 +92,11 @@ async function proxyRequest(body: object, attempt = 1): Promise<any> {
   }
 
   const text = await response.text();
-  if (!text) throw new Error('AI service returned an empty response. Try again in a moment.');
+  if (!text) {
+    const ct = response.headers.get('content-type') || 'none';
+    const cl = response.headers.get('content-length') || 'none';
+    throw new Error(`AI service returned an empty response (HTTP ${response.status}, Content-Type: ${ct}, Content-Length: ${cl}). Try again in a moment.`);
+  }
   try { return JSON.parse(text); } catch {
     throw new Error(`AI service returned unexpected data (${text.slice(0, 80)}...). Try again.`);
   }
