@@ -1,4 +1,4 @@
-import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, type Firestore } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, type Firestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import type { SharedDeckCard } from './community';
 
@@ -215,13 +215,13 @@ export async function listUserGroups(userId: string): Promise<GroupResult<(Group
         collection(db, 'group-members'),
         where('groupId', '==', gid),
       )), 10000, 'listUserGroups:memberCount');
-      const memberCountSnap = allMemberDocs.filter(d => d.data().status === 'approved');
+      const approvedCount = allMemberDocs.docs.filter(d => d.data().status === 'approved').length;
 
       groups.push({
         id: g.id,
         ...g.data(),
         role: roleMap.get(gid) || 'member',
-        memberCount: memberCountSnap.size,
+        memberCount: approvedCount,
       } as Group & { role: string; memberCount: number });
     }
 
@@ -247,14 +247,14 @@ export async function requestJoinGroup(groupId: string): Promise<GroupResult<voi
       collection(db, 'group-members'),
       where('groupId', '==', groupId),
     )), 15000, 'requestJoinGroup:checkExisting');
-    const existing = allGroupMembers.filter(d => d.data().userId === user.uid);
+    const existing = allGroupMembers.docs.filter(d => d.data().userId === user.uid);
 
-    if (!existing.empty) {
-      const status = existing.docs[0].data().status;
+    if (existing.length > 0) {
+      const status = existing[0].data().status;
       if (status === 'approved') return { success: false, error: 'You are already a member of this group' };
       if (status === 'pending') return { success: false, error: 'You already have a pending request' };
       if (status === 'rejected') {
-        await withTimeout(updateDoc(doc(db, 'group-members', existing.docs[0].id), {
+        await withTimeout(updateDoc(doc(db, 'group-members', existing[0].id), {
           status: 'pending',
           joinedAt: Timestamp.now(),
         }), 15000, 'requestJoinGroup:reRequest');
