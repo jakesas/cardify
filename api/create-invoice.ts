@@ -7,6 +7,47 @@ function b64urlDecode(s: string): string {
   return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
 }
 
+// ── Rate limiting (via Upstash Redis) ─────────────────
+
+const RL_PREFIX_INV = 'rl:inv:';
+const RL_WINDOW_INV = 60;   // seconds
+const RL_MAX_INV = 5;       // invoice requests per window
+
+async function checkRateLimit(uid: string): Promise<
+  { ok: true; remaining: number } | { ok: false; retryAfter: number }
+> {
+  const base = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!base || !token) return { ok: true, remaining: Infinity };
+
+  const key = `${RL_PREFIX_INV}${uid}`;
+  const headers = { Authorization: `Bearer ${token}` };
+
+  try {
+    const res = await fetch(`${base}/incr/${key}`, { method: 'POST', headers });
+    if (!res.ok) return { ok: true, remaining: Infinity };
+    const { result: count } = await res.json() as { result: number };
+
+    if (count === 1) {
+      fetch(`${base}/expire/${key}`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(RL_WINDOW_INV),
+      }).catch(() => {});
+    }
+
+    if (count > RL_MAX_INV) {
+      const ttlRes = await fetch(`${base}/ttl/${key}`, { headers });
+      const { result: ttl } = await ttlRes.json() as { result: number };
+      return { ok: false, retryAfter: Math.max(1, ttl ?? RL_WINDOW_INV) };
+    }
+
+    return { ok: true, remaining: RL_MAX_INV - count };
+  } catch {
+    return { ok: true, remaining: Infinity };
+  }
+}
+
 // ── Firebase JWT verification (RS256) ──────────────────
 
 const FIREBASE_PROJECT_ID = 'flashpoint-ccna';
@@ -75,6 +116,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     const decoded = await verifyToken(req.headers.authorization);
     if (!decoded) return void json(res, 401, { error: 'Unauthorized' });
+
+    const rl = await checkRateLimit(decoded.uid);
+    if (!rl.ok) {
+      res.setHeader('Retry-After', String(rl.retryAfter));
+      return void json(res, 429, { error: 'Too many requests. Please try again later.', retryAfter: rl.retryAfter });
+    }
 
     const secretKey = process.env.XENDIT_SECRET_KEY;
     if (!secretKey) return void json(res, 500, { error: 'Xendit secret key not configured' });

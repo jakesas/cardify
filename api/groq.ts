@@ -135,6 +135,48 @@ async function setCachedCards(hash: string, data: any, keywords: string[]): Prom
   }
 }
 
+// ── Rate limiting (via Upstash Redis) ─────────────────
+
+const RL_PREFIX = 'rl:';
+const RL_WINDOW = 60;   // seconds
+const RL_MAX = 15;      // requests per window
+
+async function checkRateLimit(uid: string): Promise<
+  { ok: true; remaining: number } | { ok: false; retryAfter: number }
+> {
+  const base = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!base || !token) return { ok: true, remaining: Infinity };
+
+  const key = `${RL_PREFIX}${uid}`;
+  const headers = { Authorization: `Bearer ${token}` };
+
+  try {
+    const res = await fetch(`${base}/incr/${key}`, { method: 'POST', headers });
+    if (!res.ok) return { ok: true, remaining: Infinity };
+    const { result: count } = await res.json() as { result: number };
+
+    if (count === 1) {
+      // First request — start the window
+      fetch(`${base}/expire/${key}`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(RL_WINDOW),
+      }).catch(() => {});
+    }
+
+    if (count > RL_MAX) {
+      const ttlRes = await fetch(`${base}/ttl/${key}`, { headers });
+      const { result: ttl } = await ttlRes.json() as { result: number };
+      return { ok: false, retryAfter: Math.max(1, ttl ?? RL_WINDOW) };
+    }
+
+    return { ok: true, remaining: RL_MAX - count };
+  } catch {
+    return { ok: true, remaining: Infinity };
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────
 
 function b64url(s: string): string {
@@ -223,7 +265,15 @@ async function fetchWithRetry(url: string, opts: RequestInit, attempt = 1): Prom
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
     if (req.method !== 'POST') return void json(res, 405, { error: 'Method not allowed' });
-    if (!await verifyToken(req.headers.authorization)) return void json(res, 401, { error: 'Unauthorized' });
+
+    const token = await verifyToken(req.headers.authorization);
+    if (!token) return void json(res, 401, { error: 'Unauthorized' });
+
+    const rl = await checkRateLimit(token.uid);
+    if (!rl.ok) {
+      res.setHeader('Retry-After', String(rl.retryAfter));
+      return void json(res, 429, { error: 'Too many requests. Please wait before generating more flashcards.', retryAfter: rl.retryAfter });
+    }
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) return void json(res, 500, { error: 'GROQ_API_KEY not configured' });
