@@ -5,7 +5,7 @@ import { listUserGroups } from '../lib/groups';
 interface GroupListScreenProps {
   userId: string | undefined;
   onCreateGroup: () => void;
-  onSelectGroup: (groupId: string) => void;
+  onSelectGroup: (groupId: string, groupName: string) => void;
   onGoBack: () => void;
 }
 
@@ -63,7 +63,7 @@ export const GroupListScreen: FC<GroupListScreenProps> = ({ userId, onCreateGrou
         ) : (
           <div className="grid grid-cols-1 gap-2">
             {groups.map(g => (
-              <button key={g.id} onClick={() => onSelectGroup(g.id)} className="flex items-center justify-between p-3 rounded border border-[#2D333B] bg-[#161B22] hover:border-[#30363D] transition-colors text-left w-full cursor-pointer">
+              <button key={g.id} onClick={() => onSelectGroup(g.id, g.name)} className="flex items-center justify-between p-3 rounded border border-[#2D333B] bg-[#161B22] hover:border-[#30363D] transition-colors text-left w-full cursor-pointer">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-bold text-white font-mono truncate">{g.name}</span>

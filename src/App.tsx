@@ -46,6 +46,7 @@ function AppInner() {
   const [shareDeckId, setShareDeckId] = useState<string | null>(null);
   const [importDeckShareId, setImportDeckShareId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedGroupName, setSelectedGroupName] = useState('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [joinGroupCode, setJoinGroupCode] = useState<string | null>(null);
   const [pendingShareDeckId, setPendingShareDeckId] = useState<string | null>(null);
@@ -689,7 +690,7 @@ function AppInner() {
             <GroupListScreen
               userId={user?.uid}
               onCreateGroup={() => setShowCreateGroup(true)}
-              onSelectGroup={(gid) => { setSelectedGroupId(gid); setActiveTab('group-detail'); }}
+              onSelectGroup={(gid, gname) => { setSelectedGroupId(gid); setSelectedGroupName(gname || ''); setActiveTab('group-detail'); }}
               onGoBack={() => setActiveTab('decks')}
             />
           )}
@@ -779,7 +780,7 @@ function AppInner() {
         {groupUploadGroupId && (
           <GroupDeckUploadDialog
             groupId={groupUploadGroupId}
-            groupName={''}
+            groupName={selectedGroupName}
             decks={decks}
             cards={cards}
             onClose={() => { setGroupUploadGroupId(null); setPendingShareDeckId(null); }}
