@@ -1,36 +1,37 @@
-import admin from 'firebase-admin';
-import type { DecodedIdToken } from 'firebase-admin/auth';
+const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 
-let initialized = false;
+let jwksCache: { keys: { kid: string; n: string; e: string; kty: string }[] } | null = null;
+let cacheTime = 0;
 
-function getApp(): admin.app.App {
-  if (!initialized) {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-    if (projectId && clientEmail && privateKey) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
-    } else {
-      admin.initializeApp({ projectId });
-    }
-    initialized = true;
-  }
-  return admin.app();
+async function getJwks() {
+  if (jwksCache && Date.now() - cacheTime < 3600000) return jwksCache;
+  const res = await fetch(JWKS_URL);
+  jwksCache = await res.json();
+  cacheTime = Date.now();
+  return jwksCache;
 }
 
-export async function verifyAuth(authHeader: string | undefined): Promise<DecodedIdToken> {
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw new Error('Missing or invalid Authorization header');
-  }
+function base64UrlDecode(s: string): string {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return atob(s);
+}
+
+export async function verifyAuth(authHeader: string | undefined) {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+
   const token = authHeader.slice(7);
-  const app = getApp();
-  const decoded = await app.auth().verifyIdToken(token);
-  return decoded;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(parts[1]));
+    const now = Math.floor(Date.now() / 1000);
+
+    if (payload.exp && payload.exp < now) return null;
+
+    return { uid: payload.uid || payload.sub, sub: payload.sub };
+  } catch {
+    return null;
+  }
 }

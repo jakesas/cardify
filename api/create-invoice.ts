@@ -15,7 +15,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   let decoded;
   try {
     decoded = await verifyAuth(req.headers.authorization);
-  } catch {
+  } catch (err: any) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: err?.message || 'Auth configuration error' }));
+    return;
+  }
+  if (!decoded) {
     res.statusCode = 401;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ error: 'Unauthorized' }));
