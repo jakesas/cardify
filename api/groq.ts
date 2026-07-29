@@ -1,85 +1,72 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { verifyAuth } from './_auth';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+function b64url(s: string): string {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return Buffer.from(s, 'base64').toString('utf-8');
+}
 
-  let decoded;
+function verifyToken(auth: string | undefined): { uid: string } | null {
+  if (!auth?.startsWith('Bearer ')) return null;
+  const parts = auth.slice(7).split('.');
+  if (parts.length !== 3) return null;
   try {
-    decoded = await verifyAuth(req.headers.authorization);
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Auth configuration error' });
-  }
-  if (!decoded) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+    const p = JSON.parse(b64url(parts[1]));
+    if (p.exp && p.exp < Math.floor(Date.now() / 1000)) return null;
+    return { uid: p.uid || p.sub };
+  } catch { return null; }
+}
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'GROQ_API_KEY not configured on server' });
-  }
+function json(res: ServerResponse, code: number, data: object) {
+  res.statusCode = code;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(data));
+}
 
-  // Verify we have a body to forward
-  if (!req.body) {
-    return res.status(400).json({ error: 'Request body is required' });
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-  };
-
-  let groqRes: Response;
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
-    groqRes = await fetch(GROQ_CHAT_URL, {
+    if (req.method !== 'POST') return void json(res, 405, { error: 'Method not allowed' });
+    if (!verifyToken(req.headers.authorization)) return void json(res, 401, { error: 'Unauthorized' });
+
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) return void json(res, 500, { error: 'GROQ_API_KEY not configured' });
+
+    const buffers: Buffer[] = [];
+    for await (const chunk of req) buffers.push(Buffer.from(chunk));
+    const body = JSON.parse(Buffer.concat(buffers).toString('utf-8'));
+
+    const groqRes = await fetch(GROQ_CHAT_URL, {
       method: 'POST',
-      headers,
-      body: JSON.stringify(req.body),
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
-  } catch (err) {
-    return res.status(502).json({ error: 'Failed to reach Groq API', detail: String(err) });
-  }
 
-  // Forward the status code for non-2xx responses
-  if (!groqRes.ok) {
-    const errorBody = await groqRes.text().catch(() => 'Failed to read Groq error body');
-    return res.status(groqRes.status).json({
-      error: 'Groq API error',
-      status: groqRes.status,
-      detail: errorBody,
-    });
-  }
-
-  // Streaming: pipe SSE directly to client
-  const isStream = req.body?.stream === true;
-  if (isStream && groqRes.body) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    const reader = groqRes.body.getReader();
-    const decoder = new TextDecoder();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) { res.end(); break; }
-        res.write(decoder.decode(value, { stream: true }));
-      }
-    } catch {
-      res.end();
+    if (!groqRes.ok) {
+      const detail = await groqRes.text().catch(() => '');
+      return void json(res, groqRes.status, { error: 'Groq API error', detail });
     }
-    return;
-  }
 
-  // Non-streaming: forward JSON body
-  try {
+    if (body.stream === true && groqRes.body) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      const reader = groqRes.body.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { res.end(); break; }
+          res.write(decoder.decode(value, { stream: true }));
+        }
+      } catch { res.end(); }
+      return;
+    }
+
     const data = await groqRes.json();
-    return res.status(200).json(data);
-  } catch {
-    return res.status(502).json({ error: 'Unexpected response from Groq API' });
+    json(res, 200, data);
+  } catch (err: any) {
+    json(res, 500, { error: err?.message || 'Internal error' });
   }
 }
