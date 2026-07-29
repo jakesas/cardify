@@ -1,7 +1,7 @@
 import { useState, useEffect, type FC } from 'react';
 import { Card, ReviewHistory } from '../types';
 import { getLocalDateString, isDue } from '../utils/sm2';
-import { Flame, Trophy, CheckCircle2, TrendingUp, Target, Save } from 'lucide-react';
+import { Flame, Trophy, CheckCircle2, TrendingUp, Target, Save, Brain, ChevronDown, ChevronUp } from 'lucide-react';
 import { getSetting, setSetting } from '../db/queries';
 
 interface StatsScreenProps {
@@ -28,18 +28,17 @@ export const StatsScreen: FC<StatsScreenProps> = ({
     ? Math.round((positiveCards / reviewedCardsCount) * 100)
     : 94; // fallback for initial template view
 
-  // Aggregate cards due per day over the next 7 days
-  const duePerDay = Array.from({ length: 7 }, (_, offset) => {
+  const [forecastDays, setForecastDays] = useState(7);
+  const expanded = forecastDays > 7;
+
+  const duePerDay = Array.from({ length: forecastDays }, (_, offset) => {
     const dateStr = getLocalDateString(offset);
-    // Count cards whose due date matches this exact date
     const count = cards.filter((c) => c.dueDate === dateStr).length;
-    
-    // Format day label
     const d = new Date();
     d.setDate(d.getDate() + offset);
-    const label = offset === 0 
-      ? 'Today' 
-      : d.toLocaleDateString(undefined, { weekday: 'short' });
+    const label = offset === 0
+      ? 'Today'
+      : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 
     return { label, count, dateStr };
   });
@@ -76,6 +75,32 @@ export const StatsScreen: FC<StatsScreenProps> = ({
   });
 
   const todayReviews = history.filter(h => h.timestamp.startsWith(todayStr)).length;
+
+  const domainMastery = Object.entries(domainAccuracy).map(([domain, data]) => {
+    const domainCards = cards.filter(c => c.tag === domain);
+    const avgEF = domainCards.length > 0
+      ? domainCards.reduce((s, c) => s + c.easeFactor, 0) / domainCards.length
+      : 2.5;
+    const accuracy = data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0;
+
+    let level: 'mastered' | 'reviewing' | 'fragile' | 'new' = 'new';
+    if (avgEF >= 2.5 && accuracy >= 80) level = 'mastered';
+    else if (avgEF >= 2.0 && accuracy >= 60) level = 'reviewing';
+    else if (avgEF >= 1.3) level = 'fragile';
+
+    return {
+      domain,
+      cardCount: domainCards.length,
+      avgEF: Math.round(avgEF * 100) / 100,
+      accuracy,
+      totalReviews: data.total,
+      correctReviews: data.correct,
+      level,
+    };
+  }).sort((a, b) => {
+    const order = { fragile: 0, reviewing: 1, new: 2, mastered: 3 };
+    return (order[a.level] ?? 99) - (order[b.level] ?? 99);
+  });
 
   // ─── Daily Goal Settings ────────────────────────────────────────────────
   const [dailyReviewLimit, setDailyReviewLimit] = useState('20');
@@ -178,18 +203,21 @@ export const StatsScreen: FC<StatsScreenProps> = ({
 
       {/* Visual Analytics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-        {/* Left Card: 7-Day Due Forecast (Bar Chart) */}
+        {/* Left Card: Due Forecast (Bar Chart) */}
         <div className="md:col-span-7 p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
           <div className="flex items-center justify-between border-b border-[#30363D] pb-1.5">
             <h3 className="text-[10px] font-bold font-mono tracking-wider uppercase text-[#8B949E]">
-              📆 7-Day Spacing Forecast
+              {forecastDays}-Day Spacing Forecast
             </h3>
-            <span className="text-[9px] font-mono text-[#8B949E]">Cards due per day</span>
+            <button onClick={() => setForecastDays(forecastDays === 7 ? 30 : 7)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider text-[#8B949E] hover:text-white hover:bg-[#30363D] border border-[#30363D] transition-colors cursor-pointer">
+              {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              {expanded ? '7 Days' : '30 Days'}
+            </button>
           </div>
 
           {/* Bar Chart Container */}
-          <div className="h-44 flex items-end justify-between gap-2 pt-6 px-2 border-b border-[#30363D] relative bg-[#0D1117] rounded p-2">
-            {/* Grid Helper Lines */}
+          <div className={`flex items-end justify-between gap-px sm:gap-0.5 pt-6 px-1 border-b border-[#30363D] relative bg-[#0D1117] rounded p-2 ${expanded ? 'h-52' : 'h-44'}`}>
             <div className="absolute inset-x-0 top-1/4 border-t border-[#30363D]/40 pointer-events-none"></div>
             <div className="absolute inset-x-0 top-2/4 border-t border-[#30363D]/40 pointer-events-none"></div>
             <div className="absolute inset-x-0 top-3/4 border-t border-[#30363D]/40 pointer-events-none"></div>
@@ -199,42 +227,36 @@ export const StatsScreen: FC<StatsScreenProps> = ({
               const isToday = idx === 0;
 
               return (
-                <div key={idx} className="flex-grow flex flex-col items-center group relative z-10">
-                  {/* Hover Tooltip showing number of cards */}
-                  <div className="absolute -top-7 scale-0 group-hover:scale-100 transition-all duration-75 px-1.5 py-0.5 rounded bg-[#0D1117] border border-[#30363D] text-[9px] font-mono text-[#E3B341]">
-                    {day.count} due
+                <div key={idx} className="flex-grow flex flex-col items-center group relative z-10 max-w-[32px]">
+                  <div className="absolute -top-7 scale-0 group-hover:scale-100 transition-all duration-75 px-1.5 py-0.5 rounded bg-[#0D1117] border border-[#30363D] text-[9px] font-mono text-[#E3B341] whitespace-nowrap z-20">
+                    {day.dateStr}: {day.count} due
                   </div>
-
-                  {/* Active Bar */}
                   <div
-                    className={`w-full max-w-[24px] rounded-t transition-all duration-150 ${
+                    className={`w-full rounded-t transition-all duration-150 ${
                       isToday
                         ? 'bg-[#E3B341] shadow-[0_0_8px_rgba(227,179,65,0.3)]'
                         : day.count > 0
                         ? 'bg-[#388BFD] group-hover:bg-[#58a6ff]'
                         : 'bg-[#2D333B]'
                     }`}
-                    style={{ height: `${Math.max(6, barHeightPercent)}%` }}
+                    style={{ height: `${Math.max(expanded ? 2 : 6, barHeightPercent)}%` }}
                   ></div>
-
-                  {/* Count indicator on top of zero */}
-                  {day.count > 0 && (
+                  {day.count > 0 && !expanded && (
                     <span className="text-[8px] font-mono text-[#8B949E] mt-1 font-bold">
                       {day.count}
                     </span>
                   )}
-
-                  {/* Day Label */}
-                  <span className={`text-[9px] font-mono mt-1 ${isToday ? 'text-[#E3B341] font-bold' : 'text-[#8B949E]'}`}>
-                    {day.label.toUpperCase()}
+                  <span className={`text-[9px] font-mono mt-1 truncate max-w-full ${isToday ? 'text-[#E3B341] font-bold' : 'text-[#8B949E]'}`}>
+                    {expanded ? day.label.split(' ')[0].toUpperCase() : day.label.toUpperCase()}
                   </span>
                 </div>
               );
             })}
           </div>
-          <p className="text-[9px] text-[#8B949E] font-mono text-center">
-            SM-2 PREDICTIONS BASED ON CURRENT ACTIVE MEMORY VARIABLES.
-          </p>
+          <div className="flex items-center justify-between text-[9px] font-mono">
+            <span className="text-[#8B949E]">Total due in period: <strong className="text-white">{duePerDay.reduce((s, d) => s + d.count, 0)} cards</strong></span>
+            <span className="text-[#8B949E]">SM-2 PREDICTION</span>
+          </div>
         </div>
 
         {/* Right Card: Exam Domain Distribution */}
@@ -275,37 +297,53 @@ export const StatsScreen: FC<StatsScreenProps> = ({
         </div>
       </div>
 
-      {/* Weakness Heatmap */}
+      {/* Domain Mastery Map */}
       <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-4">
-        <h3 className="text-[10px] font-bold font-mono tracking-wider uppercase text-[#8B949E] border-b border-[#30363D] pb-1.5">
-          🔥 Weakness Heatmap
-        </h3>
+        <div className="flex items-center justify-between border-b border-[#30363D] pb-1.5">
+          <h3 className="text-[10px] font-bold font-mono tracking-wider uppercase text-[#8B949E]">
+            Domain Mastery Map
+          </h3>
+          <span className="text-[9px] font-mono text-[#8B949E]">{domainMastery.length} domains</span>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {Object.keys(domainAccuracy).length === 0 ? (
+          {domainMastery.length === 0 ? (
             <div className="sm:col-span-3 text-center py-6 text-[#8B949E] font-mono text-xs uppercase">
-              No review data yet — start reviewing to see your heatmap.
+              No review data yet — start reviewing to see your mastery breakdown.
             </div>
           ) : (
-            Object.entries(domainAccuracy).map(([domain, data]) => {
-              const pct = data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0;
-              const barColor = pct >= 80 ? 'bg-[#3FB950]' : pct >= 60 ? 'bg-[#E3B341]' : pct >= 40 ? 'bg-[#D29922]' : 'bg-[#F85149]';
-              const textColor = pct >= 80 ? 'text-[#3FB950]' : pct >= 60 ? 'text-[#E3B341]' : pct >= 40 ? 'text-[#D29922]' : 'text-[#F85149]';
+            domainMastery.map(({ domain, cardCount, avgEF, accuracy, totalReviews, correctReviews, level }) => {
+              const levelConfig = {
+                mastered: { color: 'border-[#3FB950]/40 bg-[#3FB950]/5 text-[#3FB950]', label: 'Mastered' },
+                reviewing: { color: 'border-[#388BFD]/40 bg-[#388BFD]/5 text-[#388BFD]', label: 'Reviewing' },
+                fragile: { color: 'border-[#F85149]/40 bg-[#F85149]/5 text-[#F85149]', label: 'Fragile' },
+                new: { color: 'border-[#8B949E]/40 bg-[#8B949E]/5 text-[#8B949E]', label: 'New' },
+              }[level];
+              const barColor = accuracy >= 80 ? 'bg-[#3FB950]' : accuracy >= 60 ? 'bg-[#388BFD]' : accuracy >= 40 ? 'bg-[#E3B341]' : 'bg-[#F85149]';
+
               return (
                 <div key={domain} className="p-3 rounded border border-[#30363D] bg-[#0D1117] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono font-bold text-[#8B949E] uppercase truncate" title={domain}>
-                      {domain}
-                    </span>
-                    <span className={`text-[10px] font-mono font-bold ${textColor}`}>
-                      {pct}%
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] font-mono font-bold text-[#E0E0E0] uppercase truncate">{domain}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[7px] font-mono font-bold uppercase tracking-wider border ${levelConfig.color}`}>
+                      {levelConfig.label}
                     </span>
                   </div>
                   <div className="w-full h-2 rounded bg-[#161B22] overflow-hidden border border-[#30363D]">
-                    <div className={`h-full rounded ${barColor}`} style={{ width: `${pct}%` }}></div>
+                    <div className={`h-full rounded ${barColor}`} style={{ width: `${accuracy}%` }}></div>
                   </div>
-                  <div className="flex justify-between text-[8px] font-mono text-[#8B949E]">
-                    <span>{data.correct} correct</span>
-                    <span>{data.total} reviews</span>
+                  <div className="grid grid-cols-3 gap-2 text-[8px] font-mono text-[#8B949E] pt-1">
+                    <div className="text-center">
+                      <span className="block text-[10px] font-bold text-white">{cardCount}</span>
+                      Cards
+                    </div>
+                    <div className="text-center">
+                      <span className="block text-[10px] font-bold text-white">{avgEF.toFixed(1)}</span>
+                      Avg EF
+                    </div>
+                    <div className="text-center">
+                      <span className="block text-[10px] font-bold text-white">{totalReviews}</span>
+                      Reviews
+                    </div>
                   </div>
                 </div>
               );
