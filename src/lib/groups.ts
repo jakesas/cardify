@@ -80,7 +80,6 @@ async function findUniqueInviteCode(): Promise<string> {
   if (!db) throw new Error('Firestore not available');
   return generateInviteCode();
 }
-}
 
 // --- Group CRUD ---
 

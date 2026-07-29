@@ -50,6 +50,7 @@ function AppInner() {
   const [joinGroupCode, setJoinGroupCode] = useState<string | null>(null);
   const [pendingShareDeckId, setPendingShareDeckId] = useState<string | null>(null);
   const [groupUploadGroupId, setGroupUploadGroupId] = useState<string | null>(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Initialize database and load data — scoped per user
   useEffect(() => {
@@ -104,6 +105,11 @@ function AppInner() {
       window.history.replaceState(null, '', cleanUrl);
     }
   }, [user]);
+
+  // Close mobile overflow menu on navigation
+  useEffect(() => {
+    setShowMobileMenu(false);
+  }, [activeTab]);
 
   async function loadAllData() {
     const [loadedDecks, loadedCards, loadedHistory] = await Promise.all([
@@ -503,17 +509,11 @@ function AppInner() {
         <nav className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#0F1115] border-t border-[#2D333B] flex items-center justify-around px-2 py-1.5 safe-area-bottom">
           {[
             { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
-            ...(activeDeck ? [
-              { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
-            ] : []),
-            { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
             { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
             { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
             { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
-            { key: 'public', icon: BookOpen, label: 'Public', onClick: () => setActiveTab('public') },
             { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
-            { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
-          ].map((item) => {
+          ].slice(0, 4).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
             return (
@@ -536,6 +536,56 @@ function AppInner() {
               </button>
             );
           })}
+          {/* More button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowMobileMenu(prev => !prev)}
+              className={`flex flex-col items-center gap-0.5 py-1 px-3 transition-colors cursor-pointer ${
+                showMobileMenu ? 'text-[#E3B341]' : 'text-[#8B949E] hover:text-white'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
+              </svg>
+              <span className={`text-[9px] font-medium font-mono ${showMobileMenu ? 'font-bold' : ''}`}>More</span>
+              {showMobileMenu && <span className="w-4 h-0.5 rounded-full bg-[#E3B341] mt-0.5" />}
+            </button>
+
+            {showMobileMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMobileMenu(false)} />
+                <div className="absolute bottom-full right-0 mb-2 z-50 w-48 rounded border border-[#2D333B] bg-[#161B22] shadow-2xl overflow-hidden">
+                  {[
+                    ...(activeDeck ? [
+                      { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => { setActiveTab('quiz'); setShowMobileMenu(false); } },
+                      { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => { setActiveTab('weak'); setShowMobileMenu(false); } },
+                    ] : []),
+                    { key: 'public', icon: BookOpen, label: 'Public', onClick: () => { setActiveTab('public'); setShowMobileMenu(false); } },
+                    { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => { setActiveTab('stats'); setShowMobileMenu(false); } },
+                    { key: 'ai', icon: Wand2, label: 'AI', onClick: () => { setActiveTab('ai'); setShowMobileMenu(false); } },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={item.onClick}
+                        className={`flex items-center space-x-2 w-full px-3 py-2 text-left text-[11px] font-mono transition-colors cursor-pointer ${
+                          isActive
+                            ? 'text-[#E3B341] bg-[#E3B341]/10'
+                            : 'text-[#8B949E] hover:text-white hover:bg-[#21262D]'
+                        }`}
+                      >
+                        <Icon size={14} />
+                        <span>{item.label}</span>
+                        {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#E3B341]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
         </nav>
 
         {/* Trial countdown banner */}
