@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createHash } from 'node:crypto';
+import { createHash, createVerify } from 'node:crypto';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MAX_RETRIES = 5;
@@ -143,15 +143,60 @@ function b64url(s: string): string {
   return Buffer.from(s, 'base64').toString('utf-8');
 }
 
-function verifyToken(auth: string | undefined): { uid: string } | null {
+function b64urlDecode(s: string): string {
+  return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
+}
+
+// ── Firebase JWT verification (RS256) ──────────────────
+
+const FIREBASE_PROJECT_ID = 'flashpoint-ccna';
+const CERT_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
+
+let certCache: { certs: Record<string, string>; expiresAt: number } | null = null;
+
+async function getCert(kid: string): Promise<string | null> {
+  const now = Date.now();
+  if (!certCache || now > certCache.expiresAt) {
+    const res = await fetch(CERT_URL);
+    if (!res.ok) return null;
+    const maxAge = parseInt(res.headers.get('cache-control')?.match(/max-age=(\d+)/)?.[1] || '3600', 10) * 1000;
+    const certs = await res.json() as Record<string, string>;
+    certCache = { certs, expiresAt: now + maxAge };
+  }
+  return certCache.certs[kid] || null;
+}
+
+async function verifyToken(auth: string | undefined): Promise<{ uid: string } | null> {
   if (!auth?.startsWith('Bearer ')) return null;
-  const parts = auth.slice(7).split('.');
+  const raw = auth.slice(7);
+  const parts = raw.split('.');
   if (parts.length !== 3) return null;
+
+  let header: any, payload: any, signature: Buffer;
   try {
-    const p = JSON.parse(b64url(parts[1]));
-    if (p.exp && p.exp < Math.floor(Date.now() / 1000)) return null;
-    return { uid: p.uid || p.sub };
+    header = JSON.parse(b64urlDecode(parts[0]));
+    payload = JSON.parse(b64urlDecode(parts[1]));
+    signature = Buffer.from(parts[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64');
   } catch { return null; }
+
+  // Standard JWT validations (no network call)
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (payload.exp && payload.exp < nowSec) return null;
+  if (payload.iat && payload.iat > nowSec + 300) return null;
+  if (payload.aud !== FIREBASE_PROJECT_ID) return null;
+  if (payload.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`) return null;
+  if (!payload.uid && !payload.sub) return null;
+
+  // Signature verification (fetches Firebase public key via X.509 cert)
+  if (!header.kid) return null;
+  const cert = await getCert(header.kid);
+  if (!cert) return null;
+
+  const verifier = createVerify('RSA-SHA256');
+  verifier.update(`${parts[0]}.${parts[1]}`);
+  if (!verifier.verify(cert, signature)) return null;
+
+  return { uid: payload.uid || payload.sub };
 }
 
 function json(res: ServerResponse, code: number, data: object) {
@@ -178,7 +223,7 @@ async function fetchWithRetry(url: string, opts: RequestInit, attempt = 1): Prom
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
     if (req.method !== 'POST') return void json(res, 405, { error: 'Method not allowed' });
-    if (!verifyToken(req.headers.authorization)) return void json(res, 401, { error: 'Unauthorized' });
+    if (!await verifyToken(req.headers.authorization)) return void json(res, 401, { error: 'Unauthorized' });
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) return void json(res, 500, { error: 'GROQ_API_KEY not configured' });
