@@ -156,7 +156,7 @@ export async function getGroup(groupId: string): Promise<GroupResult<Group>> {
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    const d = await getDoc(doc(db, 'groups', groupId));
+    const d = await withTimeout(getDoc(doc(db, 'groups', groupId)), 15000, 'getGroup');
     if (!d.exists()) return { success: false, error: 'Group not found' };
 
     return { success: true, data: { id: d.id, ...d.data() } as Group };
@@ -171,7 +171,7 @@ export async function getGroupByInviteCode(code: string): Promise<GroupResult<Gr
     if (!db) return { success: false, error: 'Firestore not available' };
 
     const q = query(collection(db, 'groups'), where('inviteCode', '==', code.toUpperCase()), limit(1));
-    const snap = await getDocs(q);
+    const snap = await withTimeout(getDocs(q), 15000, 'getGroupByInviteCode');
     if (snap.empty) return { success: false, error: 'Invalid invite code. Group not found.' };
 
     const d = snap.docs[0];
@@ -187,11 +187,11 @@ export async function listUserGroups(userId: string): Promise<GroupResult<(Group
     if (!db) return { success: false, error: 'Firestore not available' };
 
     // Find all approved memberships for this user
-    const memberSnap = await getDocs(query(
+    const memberSnap = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('userId', '==', userId),
       where('status', '==', 'approved'),
-    ));
+    )), 15000, 'listUserGroups:memberships');
 
     const groupIds = [...new Set(memberSnap.docs.map(d => d.data().groupId))];
     const roleMap = new Map<string, string>();
@@ -207,15 +207,15 @@ export async function listUserGroups(userId: string): Promise<GroupResult<(Group
     // Fetch each group
     const groups: (Group & { role: string; memberCount: number })[] = [];
     for (const gid of groupIds) {
-      const g = await getDoc(doc(db, 'groups', gid));
+      const g = await withTimeout(getDoc(doc(db, 'groups', gid)), 10000, 'listUserGroups:getGroup');
       if (!g.exists()) continue;
 
       // Count approved members
-      const memberCountSnap = await getDocs(query(
+      const memberCountSnap = await withTimeout(getDocs(query(
         collection(db, 'group-members'),
         where('groupId', '==', gid),
         where('status', '==', 'approved'),
-      ));
+      )), 10000, 'listUserGroups:memberCount');
 
       groups.push({
         id: g.id,
@@ -243,26 +243,27 @@ export async function requestJoinGroup(groupId: string): Promise<GroupResult<voi
     if (!user) return { success: false, error: 'You must be logged in to join a group' };
 
     // Check if already a member or has pending request
-    const existing = await getDocs(query(
+    const existing = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('groupId', '==', groupId),
       where('userId', '==', user.uid),
       limit(1),
-    ));
+    )), 15000, 'requestJoinGroup:checkExisting');
 
     if (!existing.empty) {
       const status = existing.docs[0].data().status;
       if (status === 'approved') return { success: false, error: 'You are already a member of this group' };
       if (status === 'pending') return { success: false, error: 'You already have a pending request' };
-      // Rejected — allow re-request by updating
-      await updateDoc(doc(db, 'group-members', existing.docs[0].id), {
-        status: 'pending',
-        joinedAt: Timestamp.now(),
-      });
+      if (status === 'rejected') {
+        await withTimeout(updateDoc(doc(db, 'group-members', existing.docs[0].id), {
+          status: 'pending',
+          joinedAt: Timestamp.now(),
+        }), 15000, 'requestJoinGroup:reRequest');
+      }
       return { success: true };
     }
 
-    await addDoc(collection(db, 'group-members'), {
+    await withTimeout(addDoc(collection(db, 'group-members'), {
       groupId,
       userId: user.uid,
       displayName: user.displayName || user.email || 'Anonymous',
@@ -270,7 +271,7 @@ export async function requestJoinGroup(groupId: string): Promise<GroupResult<voi
       role: 'member',
       status: 'pending',
       joinedAt: Timestamp.now(),
-    });
+    }), 15000, 'requestJoinGroup:addDoc');
 
     return { success: true };
   } catch (err: any) {
@@ -283,7 +284,7 @@ export async function approveMember(memberId: string): Promise<GroupResult<void>
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    await updateDoc(doc(db, 'group-members', memberId), { status: 'approved' });
+    await withTimeout(updateDoc(doc(db, 'group-members', memberId), { status: 'approved' }), 15000, 'approveMember');
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to approve member' };
@@ -295,7 +296,7 @@ export async function rejectMember(memberId: string): Promise<GroupResult<void>>
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    await updateDoc(doc(db, 'group-members', memberId), { status: 'rejected' });
+    await withTimeout(updateDoc(doc(db, 'group-members', memberId), { status: 'rejected' }), 15000, 'rejectMember');
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to reject member' };
@@ -308,13 +309,13 @@ export async function removeMember(memberId: string): Promise<GroupResult<void>>
     if (!db) return { success: false, error: 'Firestore not available' };
 
     const { deleteDoc } = await import('firebase/firestore');
-    const m = await getDoc(doc(db, 'group-members', memberId));
+    const m = await withTimeout(getDoc(doc(db, 'group-members', memberId)), 10000, 'removeMember:getDoc');
     if (!m.exists()) return { success: false, error: 'Member not found' };
 
     const data = m.data();
     if (data.role === 'admin') return { success: false, error: 'Cannot remove the group admin' };
 
-    await deleteDoc(doc(db, 'group-members', memberId));
+    await withTimeout(deleteDoc(doc(db, 'group-members', memberId)), 10000, 'removeMember:deleteDoc');
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to remove member' };
@@ -326,11 +327,11 @@ export async function listMembers(groupId: string): Promise<GroupResult<GroupMem
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    const snap = await getDocs(query(
+    const snap = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('groupId', '==', groupId),
       orderBy('joinedAt', 'desc'),
-    ));
+    )), 15000, 'listMembers');
 
     const members: GroupMember[] = snap.docs.map(d => ({ id: d.id, ...d.data() } as GroupMember));
     return { success: true, data: members };
@@ -344,12 +345,12 @@ export async function getPendingApprovals(groupId: string): Promise<GroupResult<
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    const snap = await getDocs(query(
+    const snap = await withTimeout(getDocs(query(
       collection(db, 'group-members'),
       where('groupId', '==', groupId),
       where('status', '==', 'pending'),
       orderBy('joinedAt', 'asc'),
-    ));
+    )), 15000, 'getPendingApprovals');
 
     const members: GroupMember[] = snap.docs.map(d => ({ id: d.id, ...d.data() } as GroupMember));
     return { success: true, data: members };
@@ -375,7 +376,7 @@ export async function uploadGroupDeck(
     const user = auth.currentUser;
     if (!user) return { success: false, error: 'You must be logged in' };
 
-    const docRef = await addDoc(collection(db, 'group-decks'), {
+    const docRef = await withTimeout(addDoc(collection(db, 'group-decks'), {
       groupId,
       title,
       description: description || `${cards.length} cards`,
@@ -385,7 +386,7 @@ export async function uploadGroupDeck(
       visibility,
       createdAt: Timestamp.now(),
       downloads: 0,
-    });
+    }), 15000, 'uploadGroupDeck');
 
     return { success: true, data: docRef.id };
   } catch (err: any) {
@@ -398,11 +399,11 @@ export async function listGroupDecks(groupId: string): Promise<GroupResult<Group
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    const snap = await getDocs(query(
+    const snap = await withTimeout(getDocs(query(
       collection(db, 'group-decks'),
       where('groupId', '==', groupId),
       orderBy('createdAt', 'desc'),
-    ));
+    )), 15000, 'listGroupDecks');
 
     const decks: GroupDeck[] = snap.docs.map(d => {
       const data = d.data();
@@ -431,7 +432,7 @@ export async function getGroupDeck(deckId: string): Promise<GroupResult<GroupDec
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    const d = await getDoc(doc(db, 'group-decks', deckId));
+    const d = await withTimeout(getDoc(doc(db, 'group-decks', deckId)), 15000, 'getGroupDeck');
     if (!d.exists()) return { success: false, error: 'Deck not found' };
 
     return { success: true, data: { id: d.id, ...d.data() } as GroupDeck };
@@ -446,7 +447,7 @@ export async function deleteGroupDeck(deckId: string): Promise<GroupResult<void>
     if (!db) return { success: false, error: 'Firestore not available' };
 
     const { deleteDoc } = await import('firebase/firestore');
-    await deleteDoc(doc(db, 'group-decks', deckId));
+    await withTimeout(deleteDoc(doc(db, 'group-decks', deckId)), 15000, 'deleteGroupDeck');
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to delete deck' };
@@ -457,7 +458,7 @@ export async function incrementGroupDeckDownload(id: string): Promise<void> {
   try {
     const db = getDb();
     if (!db) return;
-    await updateDoc(doc(db, 'group-decks', id), { downloads: increment(1) });
+    await withTimeout(updateDoc(doc(db, 'group-decks', id), { downloads: increment(1) }), 10000, 'incrementDownload');
   } catch {
     // non-critical
   }
@@ -468,12 +469,12 @@ export async function listPublicDecks(max = 50): Promise<GroupResult<GroupDeck[]
     const db = getDb();
     if (!db) return { success: false, error: 'Firestore not available' };
 
-    const snap = await getDocs(query(
+    const snap = await withTimeout(getDocs(query(
       collection(db, 'group-decks'),
       where('visibility', '==', 'public'),
       orderBy('downloads', 'desc'),
       limit(max),
-    ));
+    )), 15000, 'listPublicDecks');
 
     const decks: GroupDeck[] = snap.docs.map(d => ({ id: d.id, ...d.data() } as GroupDeck));
     return { success: true, data: decks };
