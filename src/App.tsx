@@ -520,23 +520,21 @@ function AppInner() {
                 key={item.key}
                 onClick={item.onClick}
                 className={`flex flex-col items-center gap-0.5 py-1 px-3 min-w-0 transition-colors cursor-pointer ${
-                  item.centered ? '-mt-2' : ''
-                } ${
                   isActive
                     ? 'text-[#E3B341]'
                     : 'text-[#8B949E] hover:text-white'
                 }`}
               >
-                <div className={`flex items-center justify-center rounded-xl p-1.5 transition-colors ${
+                <div className={`flex items-center justify-center rounded-lg p-1 transition-colors ${
                   isActive
                     ? 'bg-[#E3B341]/15'
-                    : item.centered ? 'bg-[#1C2128]' : ''
+                    : ''
                 }`}>
-                  <Icon size={item.centered ? 20 : 18} />
+                  <Icon size={18} />
                 </div>
                 <span className={`text-[9px] font-medium font-mono ${
                   isActive ? 'font-bold' : ''
-                } ${item.centered ? 'text-[10px]' : ''}`}>
+                }`}>
                   {item.label}
                 </span>
                 {isActive && <span className="w-4 h-0.5 rounded-full bg-[#E3B341] mt-0.5" />}
