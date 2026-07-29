@@ -6,14 +6,19 @@ import { StudyMaterialScreen } from './components/StudyMaterialScreen';
 import { ReviewScreen } from './components/ReviewScreen';
 import { CardEditorScreen } from './components/CardEditorScreen';
 import { StatsScreen } from './components/StatsScreen';
-import { QuizScreen } from './components/QuizScreen';
+import { ExamScreen } from './components/ExamScreen';
+import { WeakSpotsScreen } from './components/WeakSpotsScreen';
+import { SearchScreen } from './components/SearchScreen';
+import { CommunityGalleryScreen } from './components/CommunityGalleryScreen';
+import { ShareDeckDialog } from './components/ShareDeckDialog';
+import { ImportLinkScreen } from './components/ImportLinkScreen';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import logoSrc from '/logo.png';
-import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard } from 'lucide-react';
+import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
-import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, deleteCard, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
+import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
 import { getDb, setDbUser } from './db/client';
 import { getPremiumState, activatePremium, type PremiumState } from './utils/premium';
 
@@ -28,8 +33,10 @@ function AppInner() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [shareDeckId, setShareDeckId] = useState<string | null>(null);
+  const [importDeckShareId, setImportDeckShareId] = useState<string | null>(null);
 
   // Initialize database and load data — scoped per user
   useEffect(() => {
@@ -60,6 +67,18 @@ function AppInner() {
     }
     init();
   }, [user?.uid]);
+
+  // Detect ?import= parameter from shared deck links
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const importId = params.get('import');
+    if (importId) {
+      setImportDeckShareId(importId);
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  }, [user]);
 
   async function loadAllData() {
     const [loadedDecks, loadedCards, loadedHistory] = await Promise.all([
@@ -179,6 +198,59 @@ function AppInner() {
       console.error('Failed to delete card:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete card');
     }
+  };
+
+  const handleBatchDeleteCards = async (ids: string[]) => {
+    try {
+      await deleteCards(ids);
+      setCards(prev => prev.filter(c => !ids.includes(c.id)));
+    } catch (err) {
+      console.error('Failed to delete cards:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete cards');
+    }
+  };
+
+  const handleBatchUpdateCards = async (ids: string[], fields: Partial<Card>) => {
+    try {
+      const updated = await updateCards(ids, fields);
+      const map = new Map(updated.map(c => [c.id, c]));
+      setCards(prev => prev.map(c => map.get(c.id) ?? c));
+    } catch (err) {
+      console.error('Failed to update cards:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update cards');
+    }
+  };
+
+  const handleNavigateToDeck = (deckId: string) => {
+    setSelectedDeckId(deckId);
+    setActiveTab('editor');
+  };
+
+  const handleImportCommunityDeck = async (title: string, description: string, cards: { front: string; back: string; tag: string }[]): Promise<string | null> => {
+    try {
+      const newDeck = await createDeck(title, description);
+      for (const card of cards) {
+        await createCard({
+          deckId: newDeck.id,
+          front: card.front,
+          back: card.back,
+          tag: card.tag,
+          cardType: 'basic',
+        });
+      }
+      setDecks(prev => [...prev, newDeck]);
+      const allCards = await getAllCards();
+      setCards(allCards);
+      return newDeck.id;
+    } catch (err) {
+      console.error('Failed to import deck:', err);
+      setError(err instanceof Error ? err.message : 'Failed to import deck');
+      return null;
+    }
+  };
+
+  const handleShareDeck = (deckId: string) => {
+    setShareDeckId(deckId);
   };
 
   const handleResetToDefaults = async () => {
@@ -322,7 +394,10 @@ function AppInner() {
                     { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
                     { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
                     { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
+                    { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
                   ] : []),
+                  { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
+                  { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
                   { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
                   { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
                 ].map((item) => {
@@ -389,6 +464,9 @@ function AppInner() {
             ...(activeDeck ? [
               { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
             ] : []),
+            { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
+            { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
+            { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
             { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
             { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
           ].map((item) => {
@@ -433,6 +511,7 @@ function AppInner() {
               onCreateDeck={handleCreateDeck}
               onDeleteDeck={handleDeleteDeck}
               onResetToDefaults={handleResetToDefaults}
+              onShareDeck={handleShareDeck}
             />
           )}
 
@@ -460,21 +539,49 @@ function AppInner() {
           )}
 
           {activeTab === 'quiz' && activeDeck && (
-            <QuizScreen
+            <ExamScreen
               deck={activeDeck}
               cards={cards}
-              onGoBack={() => { setActiveTab('decks'); setSelectedDeckId(null); }}
+              onGoBack={() => setActiveTab('decks')}
+            />
+          )}
+
+          {activeTab === 'weak' && (
+            <WeakSpotsScreen
+              decks={decks}
+              cards={cards}
+              history={history}
+              onReviewCard={handleReviewCard}
+              onGoBack={() => setActiveTab('decks')}
             />
           )}
 
           {activeTab === 'editor' && activeDeck && (
             <CardEditorScreen
               deck={activeDeck}
+              decks={decks}
               cards={cards}
               onAddCard={handleAddCard}
               onEditCard={handleEditCard}
               onDeleteCard={handleDeleteCard}
+              onBatchDeleteCards={handleBatchDeleteCards}
+              onBatchUpdateCards={handleBatchUpdateCards}
               onGoBack={() => setActiveTab('decks')}
+            />
+          )}
+
+          {activeTab === 'search' && (
+            <SearchScreen
+              cards={cards}
+              decks={decks}
+              onNavigateToDeck={handleNavigateToDeck}
+            />
+          )}
+
+          {activeTab === 'community' && (
+            <CommunityGalleryScreen
+              userId={user?.uid}
+              onImportDeck={handleImportCommunityDeck}
             />
           )}
 
@@ -500,6 +607,25 @@ function AppInner() {
             />
           )}
         </main>
+
+        {shareDeckId && (
+          <ShareDeckDialog
+            deckId={shareDeckId}
+            deckName={decks.find(d => d.id === shareDeckId)?.name || 'Unknown Deck'}
+            deckDescription={decks.find(d => d.id === shareDeckId)?.description || ''}
+            cards={cards}
+            userId={user?.uid}
+            onClose={() => setShareDeckId(null)}
+          />
+        )}
+
+        {importDeckShareId && (
+          <ImportLinkScreen
+            deckShareId={importDeckShareId}
+            onImportDeck={handleImportCommunityDeck}
+            onDismiss={() => setImportDeckShareId(null)}
+          />
+        )}
 
         <footer className="mt-8 sm:mt-12 pt-4 border-t border-[#2D333B] text-center">
           <p className="text-[11px] font-mono text-[#8B949E]">
