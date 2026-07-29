@@ -278,10 +278,11 @@ async function verifyToken(auth: string | undefined): Promise<{ uid: string } | 
   return { uid: payload.uid || payload.sub };
 }
 
-function json(res: ServerResponse, code: number, data: object) {
+function json(res: ServerResponse, code: number, data: unknown) {
   res.statusCode = code;
   res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(data));
+  const body = data !== undefined ? JSON.stringify(data) : 'null';
+  res.end(body);
 }
 
 async function fetchWithRetry(url: string, opts: RequestInit, attempt = 1): Promise<Response> {
@@ -334,13 +335,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (studyText.length >= 20) {
       cacheHash = hashText(studyText);
       const exactHit = await getCachedByHash(cacheHash);
-      if (exactHit) {
+      if (exactHit && exactHit.data != null) {
         res.setHeader('X-Cache', 'HIT');
         return void json(res, 200, exactHit.data);
       }
       cacheKeywords = extractKeywords(studyText);
       const fuzzyHit = await getCachedByKeywords(cacheKeywords);
-      if (fuzzyHit) {
+      if (fuzzyHit && fuzzyHit.data != null) {
         res.setHeader('X-Cache', 'FUZZY');
         return void json(res, 200, fuzzyHit.data);
       }
@@ -369,19 +370,29 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (remaining) res.setHeader('X-RateLimit-Remaining', remaining);
     if (remainingTokens) res.setHeader('X-RateLimit-Remaining-Tokens', remainingTokens);
 
-    if (body.stream === true && groqRes.body) {
+    if (body.stream === true) {
+      if (!groqRes.body) {
+        return void json(res, 500, { error: 'Groq API returned no response body for streaming request' });
+      }
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       const reader = groqRes.body.getReader();
       const decoder = new TextDecoder();
+      let wroteData = false;
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) { res.end(); break; }
+          if (done) break;
+          wroteData = true;
           res.write(decoder.decode(value, { stream: true }));
         }
-      } catch { res.end(); }
+      } catch { /* stream read error — will end below */ }
+      if (!wroteData) {
+        res.setHeader('Content-Type', 'application/json');
+        return void json(res, 502, { error: 'Groq API stream ended without data' });
+      }
+      res.end();
       return;
     }
 
