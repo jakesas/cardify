@@ -507,6 +507,8 @@ function AppInner() {
                 await updateDeckStudyMaterial(id, material);
                 setDecks(decks.map(d => d.id === id ? { ...d, studyMaterial: material } : d));
               }}
+              premiumState={premiumState ?? { status: 'expired', trialDaysRemaining: 0, plan: null, premiumUntil: null }}
+              onShowUpgrade={() => setShowUpgrade(true)}
             />
           )}
         </main>

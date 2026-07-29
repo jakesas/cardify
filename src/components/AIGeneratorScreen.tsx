@@ -4,16 +4,19 @@ import { createCard, saveAiSession } from '../db/queries';
 import { createGroqClient, generateCardsFromText, cleanOCRText, extractTextFromImageGroq, getAiConfig, type GeneratedCard } from '../utils/groq';
 import { extractTextFromDocx } from '../utils/docx';
 import { chunkText } from '../utils/chunker';
-import { Scan, FileText, Brain, Save, Loader2, AlertCircle, Upload, Check, Trash2, Wand2, File, Clock, Sparkles } from 'lucide-react';
+import { Scan, FileText, Brain, Save, Loader2, AlertCircle, Upload, Check, Trash2, Wand2, File, Clock, Sparkles, Lock, Star } from 'lucide-react';
 import { AIHistoryPanel } from './AIHistoryPanel';
+import { isPremiumActive, type PremiumState } from '../utils/premium';
 
 interface AIGeneratorScreenProps {
   decks: Deck[];
   onAddCard: (card: Parameters<typeof createCard>[0]) => void;
   onUpdateDeck?: (id: string, material: string) => Promise<void>;
+  premiumState: PremiumState;
+  onShowUpgrade: () => void;
 }
 
-export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard, onUpdateDeck }) => {
+export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard, onUpdateDeck, premiumState, onShowUpgrade }) => {
   const [step, setStep] = useState<'input' | 'review'>('input');
   const [sourceText, setSourceText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -405,6 +408,33 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
         onRestoreGenerate={handleRestoreGenerate}
       />
 
+      {/* Premium gate: only paid users can generate AI cards */}
+      {!isPremiumActive(premiumState) ? (
+        <div className="flex flex-col items-center justify-center py-10 px-4 text-center space-y-4">
+          <div className="w-14 h-14 rounded-full border-2 border-[#E3B341]/30 bg-[#E3B341]/10 flex items-center justify-center">
+            <Lock size={24} className="text-[#E3B341]" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+              Premium Feature
+            </h3>
+            <p className="text-[10px] font-mono text-[#8B949E] max-w-xs">
+              AI flashcard generation is available exclusively for premium users. Create flashcards manually in the study tab, or upgrade to unlock AI-powered generation.
+            </p>
+          </div>
+          <button
+            onClick={onShowUpgrade}
+            className="px-4 py-2 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded transition-colors flex items-center space-x-2 cursor-pointer"
+          >
+            <Star size={13} />
+            <span>Upgrade to Premium</span>
+          </button>
+          <p className="text-[9px] font-mono text-[#484F58]">
+            Plans start at ₱99/month · Lifetime available
+          </p>
+        </div>
+      ) : (
+      <>
       {/* Step 1: Input */}
       {step === 'input' && (
         <div className="space-y-4">
@@ -723,6 +753,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
           </div>
         </div>
       )}
+    </>)}
     </div>
   );
 };

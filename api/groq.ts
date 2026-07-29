@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { hashText, extractKeywords, getCachedByHash, getCachedByKeywords, setCachedCards } from './_cache';
+import { hashText, extractKeywords, getCachedByHash, getCachedByKeywords, setCachedCards } from './cache';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MAX_RETRIES = 5;

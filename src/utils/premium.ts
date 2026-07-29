@@ -109,10 +109,14 @@ export async function activatePremium(plan: PremiumPlan): Promise<void> {
   }
 }
 
-/** Check whether a premium-gated feature is available (trial or paid). */
+/** Check whether a premium-gated feature is available (paid only, no trial). */
 export async function isFeatureAvailable(): Promise<boolean> {
   const state = await getPremiumState();
-  return state.status === 'active' || state.status === 'trial';
+  return state.status === 'active';
+}
+
+export function isPremiumActive(state: PremiumState): boolean {
+  return state.status === 'active';
 }
 
 /** Human-readable label for the current access state. */
