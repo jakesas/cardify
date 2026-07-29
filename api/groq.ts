@@ -1,9 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { hashText, extractKeywords, getCachedByHash, getCachedByKeywords, setCachedCards } from './cache';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MAX_RETRIES = 5;
 const MAX_DELAY_MS = 30_000;
+
+// Lazy-loaded cache module — guarded so the function survives even if the
+// Upstash Redis dependency fails to bundle on Vercel.
+let cacheModule: Promise<typeof import('./cache')> | null = null;
+function loadCache(): Promise<typeof import('./cache') | null> {
+  if (!cacheModule) {
+    cacheModule = import('./cache').catch(() => null);
+  }
+  return cacheModule;
+}
 
 function b64url(s: string): string {
   s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -40,7 +49,6 @@ async function fetchWithRetry(url: string, opts: RequestInit, attempt = 1): Prom
 
   if (res.status === 429 && attempt <= MAX_RETRIES) {
     const retryAfter = getRetryAfterMs(res.headers);
-    // exponential backoff: 2^attempt seconds + jitter, capped by retry-after header or max delay
     const baseDelay = Math.min(2 ** attempt * 1000 + Math.random() * 1000, MAX_DELAY_MS);
     const delay = retryAfter > 0 ? Math.max(retryAfter, baseDelay) : baseDelay;
     await new Promise(r => setTimeout(r, delay));
@@ -62,22 +70,22 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     for await (const chunk of req) buffers.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(buffers).toString('utf-8'));
 
-    // Extract study text and check cache
+    const cache = await loadCache();
     const msgs = body.messages ?? [];
     const userMsg = msgs.filter((m: any) => m.role === 'user').pop()?.content || '';
     const studyText = userMsg.replace(/^Generate flashcards from this study material:\s*\n*/i, '');
     let cacheHash: string | undefined;
     let cacheKeywords: string[] | undefined;
 
-    if (studyText.length >= 20) {
-      cacheHash = hashText(studyText);
-      const exactHit = await getCachedByHash(cacheHash);
+    if (cache && studyText.length >= 20) {
+      cacheHash = cache.hashText(studyText);
+      const exactHit = await cache.getCachedByHash(cacheHash);
       if (exactHit) {
         res.setHeader('X-Cache', 'HIT');
         return void json(res, 200, exactHit.data);
       }
-      cacheKeywords = extractKeywords(studyText);
-      const fuzzyHit = await getCachedByKeywords(cacheKeywords);
+      cacheKeywords = cache.extractKeywords(studyText);
+      const fuzzyHit = await cache.getCachedByKeywords(cacheKeywords);
       if (fuzzyHit) {
         res.setHeader('X-Cache', 'FUZZY');
         return void json(res, 200, fuzzyHit.data);
@@ -102,7 +110,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       });
     }
 
-    // Forward rate limit info via custom header so the client can pace itself
     const remaining = groqRes.headers.get('x-ratelimit-remaining-requests');
     const remainingTokens = groqRes.headers.get('x-ratelimit-remaining-tokens');
     if (remaining) res.setHeader('X-RateLimit-Remaining', remaining);
@@ -126,9 +133,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     const data = await groqRes.json();
 
-    // Cache the result for future identical/similar requests
-    if (cacheHash && cacheKeywords && data?.choices?.[0]?.message?.content) {
-      setCachedCards(cacheHash, data, cacheKeywords).catch(() => {});
+    if (cache && cacheHash && cacheKeywords && data?.choices?.[0]?.message?.content) {
+      cache.setCachedCards(cacheHash, data, cacheKeywords).catch(() => {});
     }
 
     json(res, 200, data);
