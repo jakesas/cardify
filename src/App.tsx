@@ -228,6 +228,17 @@ function AppInner() {
     }
   };
 
+  const handleRenameDeck = async (deckId: string, name: string) => {
+    try {
+      const { updateDeckName } = await import('./db/queries');
+      const updated = await updateDeckName(deckId, name);
+      setDecks(prev => prev.map(d => d.id === deckId ? updated : d));
+    } catch (err) {
+      console.error('Failed to rename deck:', err);
+      setError(err instanceof Error ? err.message : 'Failed to rename deck');
+    }
+  };
+
   const handleAddCard = async (cardData: { deckId: string; cardType?: 'basic' | 'cloze'; front: string; back: string; tag: ExamDomain; imagePath?: string; codeSnippet?: { code: string; language: string }; topology?: any }) => {
     try {
       const newCard = await createCard(cardData);
@@ -318,6 +329,17 @@ function AppInner() {
   const handleGroupCreated = () => {
     setShowCreateGroup(false);
     setActiveTab('groups');
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    const { deleteGroup } = await import('./lib/groups');
+    const result = await deleteGroup(groupId);
+    if (result.success) {
+      setSelectedGroupId(null);
+      setActiveTab('groups');
+    } else {
+      setError(result.error || 'Failed to delete group');
+    }
   };
 
   const handleGroupDeckUploaded = () => {
@@ -629,7 +651,7 @@ function AppInner() {
         )}
 
         <main className="flex-grow pt-2">
-          {activeTab === 'decks' && (
+           {activeTab === 'decks' && (
             <DeckListScreen
               decks={decks}
               cards={cards}
@@ -637,6 +659,7 @@ function AppInner() {
               onSelectDeck={handleSelectDeck}
               onCreateDeck={handleCreateDeck}
               onDeleteDeck={handleDeleteDeck}
+              onRenameDeck={handleRenameDeck}
               onResetToDefaults={handleResetToDefaults}
               onShareDeck={handleShareDeck}
               onShareToGroup={handleShareToGroup}
@@ -726,13 +749,14 @@ function AppInner() {
             />
           )}
 
-          {activeTab === 'group-detail' && selectedGroupId && (
+           {activeTab === 'group-detail' && selectedGroupId && (
             <GroupDetailScreen
               groupId={selectedGroupId}
               userId={user?.uid}
               onGoBack={() => setActiveTab('groups')}
               onImportDeck={handleImportCommunityDeck}
               onShowUpload={(gid) => setGroupUploadGroupId(gid)}
+              onDeleteGroup={handleDeleteGroup}
             />
           )}
 

@@ -92,6 +92,38 @@ async function findUniqueInviteCode(): Promise<string> {
   return generateInviteCode();
 }
 
+export async function deleteGroup(groupId: string): Promise<GroupResult<void>> {
+  try {
+    const db = getDb();
+    if (!db) return { success: false, error: 'Firestore not available' };
+
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const g = await withTimeout(getDoc(doc(db, 'groups', groupId)), 10000, 'deleteGroup:getGroup');
+    if (!g.exists()) return { success: false, error: 'Group not found' };
+    if (g.data().createdBy !== user.uid) return { success: false, error: 'Only the group creator can delete the group' };
+
+    const { deleteDoc } = await import('firebase/firestore');
+
+    const deckSnap = await withTimeout(getDocs(query(collection(db, 'group-decks'), where('groupId', '==', groupId))), 15000, 'deleteGroup:listDecks');
+    for (const d of deckSnap.docs) {
+      await withTimeout(deleteDoc(doc(db, 'group-decks', d.id)), 10000, 'deleteGroup:deleteDeck');
+    }
+
+    const memberSnap = await withTimeout(getDocs(query(collection(db, 'group-members'), where('groupId', '==', groupId))), 15000, 'deleteGroup:listMembers');
+    for (const m of memberSnap.docs) {
+      await withTimeout(deleteDoc(doc(db, 'group-members', m.id)), 10000, 'deleteGroup:deleteMember');
+    }
+
+    await withTimeout(deleteDoc(doc(db, 'groups', groupId)), 10000, 'deleteGroup:deleteGroup');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to delete group' };
+  }
+}
+
 // --- Group CRUD ---
 
 export async function createGroup(name: string, description: string): Promise<GroupResult<Group>> {

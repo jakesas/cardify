@@ -9,9 +9,10 @@ interface GroupDetailScreenProps {
   onGoBack: () => void;
   onImportDeck: (title: string, description: string, cards: { front: string; back: string; tag: string }[]) => Promise<string | null>;
   onShowUpload: (groupId: string) => void;
+  onDeleteGroup?: (groupId: string) => void;
 }
 
-export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId, onGoBack, onImportDeck, onShowUpload }) => {
+export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId, onGoBack, onImportDeck, onShowUpload, onDeleteGroup }) => {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [pending, setPending] = useState<GroupMember[]>([]);
@@ -73,6 +74,20 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
     setDecks(prev => prev.filter(d => d.id !== deckId));
   };
 
+  const handleDeleteGroup = async () => {
+    if (!confirm('Delete this entire group? All members, decks, and data will be permanently removed. This cannot be undone.')) return;
+    if (!confirm('Are you absolutely sure? This action cannot be reversed.')) return;
+    onDeleteGroup?.(groupId);
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!confirm('Leave this group? You will need a new invite to rejoin.')) return;
+    const myMember = members.find(m => m.userId === userId);
+    if (!myMember) return;
+    await removeMember(myMember.id);
+    onGoBack();
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-12 animate-fade-in"><Loader2 size={24} className="text-[#E3B341] animate-spin" /></div>
@@ -103,6 +118,11 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
           </div>
           {isAdmin && (
             <span className="px-1.5 py-0.5 text-[8px] font-mono bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/20 rounded uppercase tracking-wider">Admin</span>
+          )}
+          {isAdmin && (
+            <button onClick={handleDeleteGroup} className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-mono text-[#F85149]/60 hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer" title="Delete group">
+              <Trash2 size={11} /> Delete group
+            </button>
           )}
         </div>
         <div className="flex items-center space-x-3 text-[10px] font-mono text-[#8B949E]">
@@ -205,6 +225,13 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
           ))}
         </div>
       </div>
+
+      {/* Leave group */}
+      {!isAdmin && isApproved && (
+        <button onClick={handleLeaveGroup} className="flex items-center justify-center space-x-1.5 w-full px-3 py-2 rounded border border-[#F85149]/30 text-[#F85149]/80 hover:bg-[#F85149]/10 hover:text-[#F85149] text-[11px] font-mono transition-colors cursor-pointer">
+          <Trash2 size={12} /><span>Leave group</span>
+        </button>
+      )}
 
       {error && <div className="flex items-center space-x-1.5 text-[#F85149] text-xs bg-[#F85149]/10 p-2 rounded border border-[#F85149]/20"><AlertCircle size={12} /><span>{error}</span></div>}
     </div>
