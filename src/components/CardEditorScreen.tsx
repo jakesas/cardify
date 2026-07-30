@@ -1,6 +1,6 @@
 import { useState, type FC } from 'react';
 import { Card, Deck, NetworkTopology } from '../types';
-import { Trash2, Edit3, ArrowLeft, Search, AlertCircle, FileText, Code, Upload } from 'lucide-react';
+import { Trash2, Edit3, ArrowLeft, Search, AlertCircle, FileText, Code, Upload, Star } from 'lucide-react';
 import { CsvImportDialog, type CsvRow } from './CsvImportDialog';
 
 interface CardEditorScreenProps {
@@ -96,6 +96,18 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
+  const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
+  const [selectedFilterTags, setSelectedFilterTags] = useState<Set<string>>(new Set());
+
+  const allTags = Array.from(new Set(deckCards.map(c => c.tag))).sort();
+
+  const toggleFilterTag = (tag: string) => {
+    setSelectedFilterTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag); else next.add(tag);
+      return next;
+    });
+  };
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchTagInput, setBatchTagInput] = useState('');
@@ -108,10 +120,14 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
 
   const filteredCards = deckCards.filter(
     (c) =>
-      c.front.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.front.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.back.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.tag.toLowerCase().includes(searchQuery.toLowerCase())
+      c.tag.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      (!showBookmarkedOnly || c.bookmarked) &&
+      (selectedFilterTags.size === 0 || selectedFilterTags.has(c.tag))
   );
+
+  const bookmarkedCount = deckCards.filter(c => c.bookmarked).length;
 
   const allFilteredSelected = filteredCards.length > 0 && filteredCards.every(c => selectedIds.has(c.id));
 
@@ -461,7 +477,45 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
               <Upload size={12} />
               Import CSV
             </button>
+            <button
+              onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider border transition-colors cursor-pointer whitespace-nowrap ${
+                showBookmarkedOnly
+                  ? 'bg-[#E3B341]/10 border-[#E3B341]/40 text-[#E3B341]'
+                  : 'border-[#30363D] bg-[#21262D] text-[#8B949E] hover:text-white hover:bg-[#30363D]'
+              }`}
+            >
+              <Star size={12} fill={showBookmarkedOnly ? 'currentColor' : 'none'} />
+              {bookmarkedCount > 0 ? `${bookmarkedCount} bookmarked` : 'Bookmarked'}
+            </button>
           </div>
+
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[8px] font-mono text-[#8B949E] uppercase tracking-wider font-bold mr-0.5">Tags:</span>
+              {allTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => toggleFilterTag(tag)}
+                  className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                    selectedFilterTags.has(tag)
+                      ? 'bg-[#E3B341]/15 border-[#E3B341]/40 text-[#E3B341]'
+                      : 'bg-[#0D1117] border-[#30363D] text-[#8B949E] hover:text-white hover:border-[#484F58]'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+              {selectedFilterTags.size > 0 && (
+                <button
+                  onClick={() => setSelectedFilterTags(new Set())}
+                  className="px-1.5 py-0.5 rounded text-[8px] font-mono text-[#F85149] hover:text-white hover:bg-[#F85149]/10 transition-colors cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
 
           {selectedIds.size > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 p-2 rounded border border-[#E3B341]/40 bg-[#E3B341]/5 animate-fade-in">
@@ -579,6 +633,11 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                           {card.codeSnippet && (
                             <span className="px-1 py-0.5 rounded text-[7px] font-mono bg-[#3FB950]/10 text-[#3FB950] border border-[#3FB950]/20 flex-shrink-0">
                               CFG
+                            </span>
+                          )}
+                          {card.bookmarked && (
+                            <span className="text-[#E3B341] flex-shrink-0">
+                              <Star size={10} fill="currentColor" />
                             </span>
                           )}
                         </div>
