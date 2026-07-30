@@ -38,6 +38,7 @@ export interface Card {
   interval: number;
   easeFactor: number;
   dueDate: string;
+  bookmarked?: boolean;
   lastReviewedAt?: string;
   createdAt?: string;
   updatedAt?: string;

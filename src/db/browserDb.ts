@@ -68,6 +68,7 @@ export class BrowserDb {
           const store = db.createObjectStore('cards', { keyPath: 'id', autoIncrement: true });
           store.createIndex('deck_id', 'deck_id');
           store.createIndex('due_date', 'due_date');
+          store.createIndex('bookmarked', 'bookmarked');
         }
         if (!db.objectStoreNames.contains('reviews')) {
           const store = db.createObjectStore('reviews', { keyPath: 'id', autoIncrement: true });

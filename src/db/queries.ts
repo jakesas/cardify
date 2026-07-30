@@ -73,8 +73,8 @@ export async function createCard(input: {
   const db = await getDb();
   const today = new Date().toISOString().split('T')[0];
   const rows = await db.select<any[]>(
-    `INSERT INTO cards (deck_id, card_type, front, back, tag, image_path, code_snippet, topology, ease_factor, interval_days, reps, due_date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2.5, 0, 0, ?, datetime('now'), datetime('now'))
+    `INSERT INTO cards (deck_id, card_type, front, back, tag, image_path, code_snippet, topology, bookmarked, ease_factor, interval_days, reps, due_date, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 2.5, 0, 0, ?, datetime('now'), datetime('now'))
      RETURNING *`,
     [
       Number(input.deckId),
@@ -100,6 +100,7 @@ function buildCardSetClauses(fields: Partial<Card>, params: any[]): string[] {
   if (fields.imagePath !== undefined) { setParts.push('image_path = ?'); params.push(fields.imagePath); }
   if (fields.codeSnippet !== undefined) { setParts.push('code_snippet = ?'); params.push(fields.codeSnippet ? JSON.stringify(fields.codeSnippet) : null); }
   if (fields.topology !== undefined) { setParts.push('topology = ?'); params.push(fields.topology ? JSON.stringify(fields.topology) : null); }
+  if (fields.bookmarked !== undefined) { setParts.push('bookmarked = ?'); params.push(fields.bookmarked ? 1 : 0); }
   return setParts;
 }
 
@@ -337,6 +338,7 @@ function mapRowToCard(row: any): Card {
     imagePath: row.image_path,
     codeSnippet: row.code_snippet ? JSON.parse(row.code_snippet) : undefined,
     topology: row.topology ? JSON.parse(row.topology) : undefined,
+    bookmarked: row.bookmarked === 1 || row.bookmarked === true,
     reps: row.reps ?? row.repetitions ?? 0,
     interval: row.interval_days,
     easeFactor: row.ease_factor,
