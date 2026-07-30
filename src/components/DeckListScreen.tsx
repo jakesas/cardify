@@ -10,6 +10,7 @@ interface DeckListScreenProps {
   onSelectDeck: (deckId: string, tab: 'study' | 'review' | 'editor' | 'quiz') => void;
   onCreateDeck: (name: string, description: string) => void;
   onDeleteDeck: (deckId: string) => void;
+  onRenameDeck: (deckId: string, name: string) => void;
   onResetToDefaults: () => void;
   onShareDeck: (deckId: string) => void;
   onShareToGroup: (deckId: string) => void;
@@ -22,6 +23,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   onSelectDeck,
   onCreateDeck,
   onDeleteDeck,
+  onRenameDeck,
   onResetToDefaults,
   onShareDeck,
   onShareToGroup,
@@ -31,6 +33,8 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   const [newDeckDesc, setNewDeckDesc] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [overflowMenuDeckId, setOverflowMenuDeckId] = useState<string | null>(null);
+  const [renameDeckId, setRenameDeckId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const todayStr = getLocalDateString();
 
@@ -60,6 +64,14 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
       total: deckCards.length,
       due: dueCount,
     };
+  };
+
+  const handleRename = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renameValue.trim()) return;
+    if (renameDeckId) onRenameDeck(renameDeckId, renameValue.trim());
+    setRenameDeckId(null);
+    setRenameValue('');
   };
 
   const handleCreate = (e: React.FormEvent) => {
@@ -310,6 +322,13 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                                 <span>Quiz</span>
                               </button>
                               <button
+                                onClick={() => { setRenameValue(deck.name); setRenameDeckId(deck.id); setOverflowMenuDeckId(null); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                              >
+                                <Edit3 size={13} className="text-[#58A6FF]" />
+                                <span>Rename</span>
+                              </button>
+                              <button
                                 onClick={() => { onShareDeck(deck.id); setOverflowMenuDeckId(null); }}
                                 className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
                               >
@@ -369,6 +388,28 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
           </div>
         )}
       </div>
+
+      {/* Rename Deck Dialog */}
+      {renameDeckId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md rounded border border-[#2D333B] bg-[#161B22] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#2D333B] pb-2">
+              <h3 className="text-xs font-bold text-[#8B949E] font-mono uppercase tracking-wider">Rename Deck</h3>
+              <button onClick={() => setRenameDeckId(null)} className="text-[#8B949E] hover:text-white text-[10px] font-mono p-1 hover:bg-[#21262D] rounded">CLOSE</button>
+            </div>
+            <form onSubmit={handleRename} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase font-bold">Deck Name *</label>
+                <input type="text" placeholder="Enter deck name" value={renameValue} onChange={e => setRenameValue(e.target.value)} className="w-full px-3 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600" maxLength={50} autoFocus />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button type="button" onClick={() => setRenameDeckId(null)} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#8B949E] hover:text-white rounded hover:bg-[#21262D] transition-colors cursor-pointer">Cancel</button>
+                <button type="submit" className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F] rounded transition-colors cursor-pointer">Rename</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Form for Creating a Deck */}
       {showCreateModal && (

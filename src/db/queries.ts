@@ -27,6 +27,15 @@ export async function createDeck(name: string, description?: string): Promise<De
   return mapRowToDeck(result[0]);
 }
 
+export async function updateDeckName(deckId: string, name: string): Promise<Deck> {
+  const db = await getDb();
+  const rows = await db.select<any[]>(
+    'UPDATE decks SET name = ? WHERE id = ? RETURNING *',
+    [name, Number(deckId)]
+  );
+  return mapRowToDeck(rows[0]);
+}
+
 export async function updateDeckStudyMaterial(deckId: string, material: string): Promise<Deck> {
   const db = await getDb();
   const rows = await db.select<any[]>(
