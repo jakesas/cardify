@@ -1,6 +1,6 @@
 import { useState, useEffect, type FC } from 'react';
 import { Deck, Card } from '../types';
-import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users, Download, Printer, Flame } from 'lucide-react';
+import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
 
 interface DeckListScreenProps {
@@ -30,6 +30,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   const [newDeckName, setNewDeckName] = useState('');
   const [newDeckDesc, setNewDeckDesc] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [overflowMenuDeckId, setOverflowMenuDeckId] = useState<string | null>(null);
 
   const todayStr = getLocalDateString();
 
@@ -219,137 +220,148 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {decks.map((deck) => {
               const { total, due } = getDeckStats(deck.id);
+              const showOverflow = overflowMenuDeckId === deck.id;
 
               return (
                 <div
                   key={deck.id}
                   id={`deck-card-${deck.id}`}
-                  className={`group relative flex flex-col justify-between rounded border p-4 transition-all duration-150 bg-[#161B22] ${
+                  className={`group relative flex flex-col justify-between rounded border p-3.5 transition-all duration-150 bg-[#161B22] ${
                     due > 0
                       ? 'border-[#E3B341]/40 hover:border-[#E3B341]'
-                      : 'border-[#2D333B] hover:border-[#30363D]'
+                      : 'border-[#2D333B] hover:border-[#484F58]'
                   }`}
                 >
-                  <div className="space-y-2">
-                    {/* Header */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${due > 0 ? 'bg-[#E3B341]' : 'bg-[#8B949E]'}`}></span>
-                        <span className="text-[9px] font-mono text-[#8B949E]">
-                          {deck.id.toUpperCase()}
+                  <div className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5 ${due > 0 ? 'bg-[#E3B341]' : 'bg-[#8B949E]'}`}></span>
+                        <span className="text-[7px] font-mono text-[#484F58] font-bold tracking-wider flex-shrink-0">
+                          #{deck.id}
                         </span>
+                        <h3 className="text-sm font-bold text-white group-hover:text-[#E3B341] transition-colors font-mono truncate">
+                          {deck.name}
+                        </h3>
                       </div>
 
-                      {/* Due Count Badge */}
-                      {due > 0 ? (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/20">
-                          {due} due now
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-[9px] font-mono text-[#8B949E] whitespace-nowrap">
+                          <span className="text-white font-bold">{total}</span>
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#3FB950]/10 text-[#3FB950] border border-[#3FB950]/20">
-                          Up to date
-                        </span>
-                      )}
+                        {due > 0 ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/20">
+                            {due} due
+                          </span>
+                        ) : total > 0 ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#3FB950]/10 text-[#3FB950] border border-[#3FB950]/20">
+                            Up to date
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
 
-                    {/* Title & Description */}
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-bold text-white group-hover:text-[#E3B341] transition-colors font-mono">
-                        {deck.name}
-                      </h3>
+                    {deck.description && (
                       <p className="text-[11px] text-[#8B949E] leading-relaxed line-clamp-2">
-                        {deck.description || 'No description provided.'}
+                        {deck.description}
                       </p>
-                    </div>
+                    )}
                   </div>
 
-                  {/* Footer Stats & Actions */}
-                  <div className="mt-4 pt-3 border-t border-[#2D333B] flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[9px] sm:text-[10px] text-[#8B949E] font-mono">
-                      Total: <span className="text-white font-bold">{total} cards</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                      {/* Manage (Card Editor) */}
+                  <div className="mt-3 pt-2.5 border-t border-[#2D333B] flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => onSelectDeck(deck.id, 'editor')}
-                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-white hover:bg-[#30363D] transition-colors cursor-pointer"
-                        title="Manage and edit cards"
+                        className="flex items-center justify-center min-w-[36px] min-h-[36px] rounded text-[#8B949E] hover:text-white hover:bg-[#30363D] transition-colors cursor-pointer"
+                        title="Manage cards"
                       >
-                        <Edit3 size={14} />
+                        <Edit3 size={13} />
                       </button>
 
-                      {/* Quiz */}
-                      <button
-                        onClick={() => onSelectDeck(deck.id, 'quiz')}
-                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#E3B341] hover:bg-[#E3B341]/10 transition-colors cursor-pointer"
-                        title="Quiz mode"
-                      >
-                        <Zap size={14} />
-                      </button>
-
-                      {/* Delete */}
                       <button
                         onClick={() => {
-                          if (confirm(`Are you sure you want to delete "${deck.name}" and all of its cards?`)) {
+                          if (confirm(`Delete "${deck.name}" and all ${total} cards?`)) {
                             onDeleteDeck(deck.id);
                           }
                         }}
-                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
+                        className="flex items-center justify-center min-w-[36px] min-h-[36px] rounded text-[#F85149]/60 hover:text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
                         title="Delete deck"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={13} />
                       </button>
 
-                      {/* Share */}
-                      <button
-                        onClick={() => onShareDeck(deck.id)}
-                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#58A6FF] hover:bg-[#58A6FF]/10 transition-colors cursor-pointer"
-                        title="Share deck link"
-                      >
-                        <Share2 size={14} />
-                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setOverflowMenuDeckId(showOverflow ? null : deck.id)}
+                          className="flex items-center justify-center min-w-[36px] min-h-[36px] rounded text-[#8B949E] hover:text-white hover:bg-[#30363D] transition-colors cursor-pointer"
+                          title="More actions"
+                        >
+                          <MoreHorizontal size={13} />
+                        </button>
 
-                      {/* Share to Group */}
-                      <button
-                        onClick={() => onShareToGroup(deck.id)}
-                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#58A6FF] hover:bg-[#58A6FF]/10 transition-colors cursor-pointer"
-                        title="Share to study group"
-                      >
-                        <Users size={14} />
-                      </button>
-
-                      {/* Export CSV */}
-                      <button
-                        onClick={() => handleExportCsv(deck.id, deck.name)}
-                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#3FB950] hover:bg-[#3FB950]/10 transition-colors cursor-pointer"
-                        title="Export as CSV"
-                      >
-                        <Download size={14} />
-                      </button>
-
-                      {/* Export PDF (Print) */}
-                      <button
-                        onClick={() => handleExportPdf(deck.id, deck.name)}
-                        className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded text-[#8B949E] hover:text-[#58A6FF] hover:bg-[#58A6FF]/10 transition-colors cursor-pointer"
-                        title="Print as study sheet"
-                      >
-                        <Printer size={14} />
-                      </button>
-
-                      {/* Main Study CTA */}
-                      <button
-                        onClick={() => onSelectDeck(deck.id, due > 0 ? 'study' : 'editor')}
-                        className={`inline-flex items-center space-x-1.5 px-3 h-[44px] rounded text-[10px] font-bold tracking-wider transition-colors cursor-pointer ${
-                          due > 0
-                            ? 'bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F]'
-                            : 'bg-[#21262D] text-white hover:bg-[#30363D] border border-[#30363D]'
-                        }`}
-                      >
-                        <span>{due > 0 ? 'Study' : 'Manage'}</span>
-                        <ArrowRight size={10} />
-                      </button>
+                        {showOverflow && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setOverflowMenuDeckId(null)} />
+                            <div className="absolute left-0 bottom-full mb-1 z-50 w-44 rounded border border-[#2D333B] bg-[#161B22] shadow-2xl overflow-hidden">
+                              <button
+                                onClick={() => { onSelectDeck(deck.id, 'quiz'); setOverflowMenuDeckId(null); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                              >
+                                <Zap size={13} className="text-[#E3B341]" />
+                                <span>Quiz</span>
+                              </button>
+                              <button
+                                onClick={() => { onShareDeck(deck.id); setOverflowMenuDeckId(null); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                              >
+                                <Share2 size={13} className="text-[#58A6FF]" />
+                                <span>Share link</span>
+                              </button>
+                              <button
+                                onClick={() => { onShareToGroup(deck.id); setOverflowMenuDeckId(null); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                              >
+                                <Users size={13} className="text-[#58A6FF]" />
+                                <span>Share to group</span>
+                              </button>
+                              <button
+                                onClick={() => { handleExportCsv(deck.id, deck.name); setOverflowMenuDeckId(null); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                              >
+                                <Download size={13} className="text-[#3FB950]" />
+                                <span>Export CSV</span>
+                              </button>
+                              <button
+                                onClick={() => { handleExportPdf(deck.id, deck.name); setOverflowMenuDeckId(null); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                              >
+                                <Printer size={13} className="text-[#58A6FF]" />
+                                <span>Print study sheet</span>
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Main Study CTA */}
+                    <button
+                      onClick={() => onSelectDeck(deck.id, due > 0 ? 'study' : 'editor')}
+                      className={`inline-flex items-center gap-1.5 px-3 h-[36px] rounded text-[10px] font-bold tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                        due > 0
+                          ? 'bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F] shadow-sm'
+                          : total === 0
+                            ? 'bg-transparent text-[#8B949E] hover:text-white border border-dashed border-[#30363D] hover:border-[#484F58]'
+                            : 'bg-[#21262D] text-white hover:bg-[#30363D] border border-[#30363D]'
+                      }`}
+                    >
+                      {total === 0 ? (
+                        <>Add cards</>
+                      ) : due > 0 ? (
+                        <>Study <ArrowRight size={10} /></>
+                      ) : (
+                        <>Manage <ArrowRight size={10} /></>
+                      )}
+                    </button>
                   </div>
                 </div>
               );
