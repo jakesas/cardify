@@ -14,14 +14,13 @@ import { ShareDeckDialog } from './components/ShareDeckDialog';
 import { ImportLinkScreen } from './components/ImportLinkScreen';
 import { GroupListScreen } from './components/GroupListScreen';
 import { GroupDetailScreen } from './components/GroupDetailScreen';
-import { PublicDeckScreen } from './components/PublicDeckScreen';
 import { CreateGroupDialog } from './components/CreateGroupDialog';
 import { JoinGroupDialog } from './components/JoinGroupDialog';
 import { GroupDeckUploadDialog } from './components/GroupDeckUploadDialog';
 import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import logoSrc from '/logo.png';
-import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe, Users, BookOpen } from 'lucide-react';
+import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe, Users } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
@@ -41,7 +40,7 @@ function AppInner() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'groups' | 'group-detail' | 'public'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'groups' | 'group-detail'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [shareDeckId, setShareDeckId] = useState<string | null>(null);
   const [importDeckShareId, setImportDeckShareId] = useState<string | null>(null);
@@ -118,7 +117,7 @@ function AppInner() {
     if (!hash) return;
     const parts = hash.split('/');
     const tab = parts[0];
-    const validTabs: readonly string[] = ['decks', 'study', 'review', 'editor', 'stats', 'ai', 'quiz', 'weak', 'search', 'community', 'groups', 'group-detail', 'public'];
+    const validTabs: readonly string[] = ['decks', 'study', 'review', 'editor', 'stats', 'ai', 'quiz', 'weak', 'search', 'community', 'groups', 'group-detail'];
     if (!validTabs.includes(tab)) return;
     setActiveTab(tab as typeof activeTab);
     if (tab === 'group-detail' && parts[1]) {
@@ -494,7 +493,6 @@ function AppInner() {
                   { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
                   { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
                   { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
-                  { key: 'public', icon: BookOpen, label: 'Group Library', onClick: () => setActiveTab('public') },
                   { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
                   { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
                 ].map((item) => {
@@ -614,7 +612,6 @@ function AppInner() {
                       { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => { setActiveTab('quiz'); setShowMobileMenu(false); } },
                       { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => { setActiveTab('weak'); setShowMobileMenu(false); } },
                     ] : []),
-                    { key: 'public', icon: BookOpen, label: 'Group Library', onClick: () => { setActiveTab('public'); setShowMobileMenu(false); } },
                     { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => { setActiveTab('stats'); setShowMobileMenu(false); } },
                     { key: 'search', icon: Search, label: 'Search', onClick: () => { setActiveTab('search'); setShowMobileMenu(false); } },
                   ].map((item) => {
@@ -757,13 +754,6 @@ function AppInner() {
               onImportDeck={handleImportCommunityDeck}
               onShowUpload={(gid) => setGroupUploadGroupId(gid)}
               onDeleteGroup={handleDeleteGroup}
-            />
-          )}
-
-          {activeTab === 'public' && (
-            <PublicDeckScreen
-              onGoBack={() => setActiveTab('decks')}
-              onImportDeck={handleImportCommunityDeck}
             />
           )}
 
