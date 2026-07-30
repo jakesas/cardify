@@ -381,10 +381,10 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
     <div className="space-y-4 animate-fade-in">
       <div className="pb-3 border-b border-[#2D333B] flex items-center justify-between">
         <div>
-          <span className="text-[9px] font-mono tracking-widest text-[#8B949E] uppercase font-bold">
+          <span className="text-[9px] font-mono tracking-widest text-[#8B949E] font-bold">
             AI Flashcard Generator
           </span>
-          <h2 className="text-sm font-bold text-white uppercase font-mono mt-0.5 flex items-center gap-1.5">
+          <h2 className="text-sm font-bold text-white font-mono mt-0.5 flex items-center gap-1.5">
             <span>OCR + Groq AI</span>
             <span className="px-1 py-0.5 rounded bg-[#3FB950]/20 text-[#3FB950] text-[8px] font-bold font-mono uppercase tracking-wider leading-none">
               <Sparkles size={8} className="inline mr-0.5" />Premium
@@ -394,7 +394,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
         {step === 'review' && (
           <button
             onClick={resetAll}
-            className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-[#8B949E] hover:text-white border border-[#30363D] rounded hover:bg-[#21262D] transition-colors cursor-pointer"
+            className="px-2 py-1 text-[10px] font-mono font-bold tracking-wider text-[#8B949E] hover:text-white border border-[#30363D] rounded hover:bg-[#21262D] transition-colors cursor-pointer"
           >
             Generate More
           </button>
@@ -415,7 +415,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
             <Lock size={24} className="text-[#E3B341]" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+            <h3 className="text-sm font-bold text-white font-mono tracking-wider">
               Premium Feature
             </h3>
             <p className="text-[10px] font-mono text-[#8B949E] max-w-xs">
@@ -424,7 +424,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
           </div>
           <button
             onClick={onShowUpgrade}
-            className="px-4 py-2 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded transition-colors flex items-center space-x-2 cursor-pointer"
+            className="px-4 py-2 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-bold tracking-wider rounded transition-colors flex items-center space-x-2 cursor-pointer"
           >
             <Star size={13} />
             <span>Upgrade to Premium</span>
@@ -437,13 +437,60 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       <>
       {/* Step 1: Input */}
       {step === 'input' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="space-y-5">
+          {/* Primary: Paste or type text */}
+          <div className="p-5 rounded-lg border-2 border-[#E3B341]/15 bg-[#161B22] space-y-3">
+            <div className="flex items-center space-x-2 text-[11px] font-mono font-semibold text-[#8B949E]">
+              <FileText size={15} className="text-[#E3B341]" />
+              <span>Paste or type text</span>
+            </div>
+            <div className="space-y-1">
+              <textarea
+                value={sourceText}
+                onChange={(e) => setSourceText(e.target.value)}
+                placeholder="Paste your notes here."
+                className="w-full h-32 px-3 py-2 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
+              />
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-[9px] font-mono text-[#8B949E]">
+                  AI reads this text and generates flashcards from it
+                </span>
+                <div className="flex items-center gap-2">
+                  {sourceText.length > MAX_INPUT_CHARS && (
+                    <span className="text-[8px] font-mono text-[#E3B341]">will be auto-chunked</span>
+                  )}
+                  <span className={`text-[9px] font-mono ${sourceText.length > MAX_INPUT_CHARS ? 'text-[#E3B341] font-bold' : 'text-[#8B949E]'}`}>
+                    {sourceText.length.toLocaleString()} chars
+                  </span>
+                </div>
+              </div>
+            </div>
+            {sourceText.trim() && (
+              <button
+                onClick={handleCleanOCR}
+                disabled={isCleaning}
+                className="w-full py-1.5 bg-[#21262D] hover:bg-[#30363D] disabled:opacity-50 text-white text-[10px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                {isCleaning ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                <span>{isCleaning ? 'Cleaning text...' : 'Clean OCR garbage with AI'}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Or divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-[#2D333B]" />
+            <span className="text-[9px] font-mono text-[#484F58] font-semibold tracking-wider">or import from a file</span>
+            <div className="flex-1 h-px bg-[#2D333B]" />
+          </div>
+
+          {/* Secondary: OCR + Word Upload */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             {/* OCR Upload */}
             <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
-              <div className="flex items-center space-x-2 text-[10px] font-mono font-bold text-[#8B949E] uppercase tracking-wider">
+              <div className="flex items-center space-x-2 text-[10px] font-mono font-semibold text-[#8B949E]">
                 <Scan size={14} className="text-[#E3B341]" />
-                <span>Vision OCR from Image</span>
+                <span>Vision OCR from image</span>
               </div>
               <div
                 onClick={() => fileInputRef.current?.click()}
@@ -465,6 +512,9 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                   </>
                 )}
               </div>
+              <span className="block text-[8px] font-mono text-[#484F58]">
+                JPG, PNG up to 10MB
+              </span>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -476,9 +526,9 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
 
             {/* Word Upload */}
             <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
-              <div className="flex items-center space-x-2 text-[10px] font-mono font-bold text-[#8B949E] uppercase tracking-wider">
+              <div className="flex items-center space-x-2 text-[10px] font-mono font-semibold text-[#8B949E]">
                 <File size={14} className="text-[#388BFD]" />
-                <span>Upload Word File</span>
+                <span>Upload Word file</span>
               </div>
               <div
                 onClick={() => docxInputRef.current?.click()}
@@ -496,6 +546,9 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                   </>
                 )}
               </div>
+              <span className="block text-[8px] font-mono text-[#484F58]">
+                DOCX up to 10MB
+              </span>
               <input
                 ref={docxInputRef}
                 type="file"
@@ -503,40 +556,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                 onChange={handleDocxUpload}
                 className="hidden"
               />
-            </div>
-
-            {/* Text Input */}
-            <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
-              <div className="flex items-center space-x-2 text-[10px] font-mono font-bold text-[#8B949E] uppercase tracking-wider">
-                <FileText size={14} className="text-[#388BFD]" />
-                <span>Paste or Type Text</span>
-              </div>
-              <div className="space-y-1">
-                <textarea
-                  value={sourceText}
-                  onChange={(e) => setSourceText(e.target.value)}
-                  placeholder="Paste your study material, notes, or any text content here. AI will generate flashcards automatically."
-                  className="w-full h-28 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#388BFD] placeholder-slate-600 resize-none"
-                />
-                <div className="flex justify-end items-center gap-2">
-                  {sourceText.length > MAX_INPUT_CHARS && (
-                    <span className="text-[8px] font-mono text-[#E3B341]">will be auto-chunked</span>
-                  )}
-                  <span className={`text-[9px] font-mono ${sourceText.length > MAX_INPUT_CHARS ? 'text-[#E3B341] font-bold' : 'text-[#8B949E]'}`}>
-                    {sourceText.length.toLocaleString()} chars
-                  </span>
-                </div>
-              </div>
-              {sourceText.trim() && (
-                <button
-                  onClick={handleCleanOCR}
-                  disabled={isCleaning}
-                  className="w-full py-1.5 bg-[#21262D] hover:bg-[#30363D] disabled:opacity-50 text-white text-[10px] font-bold uppercase tracking-wider rounded border border-[#30363D] transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  {isCleaning ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                  <span>{isCleaning ? 'Cleaning Text...' : 'Clean OCR Garbage with AI'}</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -552,7 +571,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                   ) : (
                     <Loader2 size={14} className="animate-spin text-[#E3B341]" />
                   )}
-                  <span className="text-[10px] font-mono font-bold text-[#E3B341] uppercase tracking-wider">
+                  <span className="text-[10px] font-mono font-bold text-[#E3B341] tracking-wider">
                     {processingPhase === 'connecting' && 'Connecting to AI...'}
                     {processingPhase === 'pacing' && `Pacing chunk ${chunkIndex}/${chunkTotal} — waiting to stay within API limits`}
                     {processingPhase === 'generating' && (
@@ -621,7 +640,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
           <button
             onClick={handleGenerate}
             disabled={isProcessing || !sourceText.trim()}
-            className="w-full py-2.5 bg-[#E3B341] hover:bg-[#F0C24F] disabled:bg-[#2D333B] disabled:text-[#484F58] text-[#0F1115] text-xs font-bold uppercase tracking-wider rounded transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-[#E3B341] hover:bg-[#F0C24F] disabled:opacity-40 disabled:hover:bg-[#E3B341] text-[#0F1115] text-xs font-bold tracking-wider rounded transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
           >
             {isProcessing ? (
               <>
@@ -639,10 +658,16 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
             ) : (
               <>
                 <Brain size={14} />
-                <span>Generate Flashcards with Groq AI</span>
+                <span>Generate flashcards with Groq AI</span>
               </>
             )}
           </button>
+
+          {!sourceText.trim() && !isProcessing && (
+            <p className="text-[9px] font-mono text-[#484F58] text-center -mt-2">
+              Add text, an image, or a Word document above to get started
+            </p>
+          )}
 
           {error && (
             <div className="flex flex-col space-y-2 text-[#F85149] text-xs bg-[#F85149]/10 p-3 rounded border border-[#F85149]/20">
@@ -698,7 +723,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
               <button
                 onClick={handleSaveAll}
                 disabled={!selectedDeckId}
-                className="px-2.5 py-1 bg-[#3FB950] hover:bg-[#4ade80] disabled:bg-[#2D333B] disabled:text-[#484F58] text-[#0F1115] text-[9px] sm:text-[10px] font-bold uppercase tracking-wider rounded transition-colors flex items-center space-x-1 cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
+                className="px-2.5 py-1 bg-[#3FB950] hover:bg-[#4ade80] disabled:bg-[#2D333B] disabled:text-[#484F58] text-[#0F1115] text-[9px] sm:text-[10px] font-bold tracking-wider rounded transition-colors flex items-center space-x-1 cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
               >
                 <Save size={11} />
                 <span>Save</span>
