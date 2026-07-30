@@ -1,4 +1,4 @@
-import { getFirestore, collection, query, where, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, type Firestore } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, limit, type Firestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import type { SharedDeckCard } from './community';
 
