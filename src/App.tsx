@@ -607,6 +607,7 @@ function AppInner() {
             <DeckListScreen
               decks={decks}
               cards={cards}
+              streakDays={streakDays}
               onSelectDeck={handleSelectDeck}
               onCreateDeck={handleCreateDeck}
               onDeleteDeck={handleDeleteDeck}
@@ -635,6 +636,10 @@ function AppInner() {
               cards={cards}
               reviewHistory={history}
               onReviewCard={handleReviewCard}
+              onToggleBookmark={async (cardId, bookmarked) => {
+                await updateCard(cardId, { bookmarked });
+                setCards(prev => prev.map(c => c.id === cardId ? { ...c, bookmarked } : c));
+              }}
               onGoBack={() => setActiveTab('study')}
             />
           )}
