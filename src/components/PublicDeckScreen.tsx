@@ -52,7 +52,7 @@ export const PublicDeckScreen: FC<PublicDeckScreenProps> = ({ onGoBack, onImport
       <div className="rounded border border-[#2D333B] bg-[#161B22] p-4 space-y-3">
         <div className="flex items-center space-x-2">
           <Globe size={16} className="text-[#58A6FF]" />
-          <h2 className="text-base font-bold text-white font-mono">Public Library</h2>
+          <h2 className="text-base font-bold text-white font-mono">Group Library</h2>
         </div>
         <p className="text-[11px] text-[#8B949E]">Browse public flashcards shared across all study groups. Anyone can import these decks.</p>
 

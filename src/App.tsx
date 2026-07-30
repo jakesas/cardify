@@ -112,6 +112,32 @@ function AppInner() {
     setShowMobileMenu(false);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!user) return;
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const parts = hash.split('/');
+    const tab = parts[0];
+    const validTabs: readonly string[] = ['decks', 'study', 'review', 'editor', 'stats', 'ai', 'quiz', 'weak', 'search', 'community', 'groups', 'group-detail', 'public'];
+    if (!validTabs.includes(tab)) return;
+    setActiveTab(tab as typeof activeTab);
+    if (tab === 'group-detail' && parts[1]) {
+      setSelectedGroupId(parts[1]);
+    } else if (['study', 'review', 'editor', 'quiz'].includes(tab) && parts[1]) {
+      setSelectedDeckId(parts[1]);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    let hash = activeTab;
+    if (activeTab === 'group-detail' && selectedGroupId) {
+      hash += `/${selectedGroupId}`;
+    } else if (['study', 'review', 'editor', 'quiz'].includes(activeTab) && selectedDeckId) {
+      hash += `/${selectedDeckId}`;
+    }
+    window.location.hash = hash;
+  }, [activeTab, selectedDeckId, selectedGroupId]);
+
   async function loadAllData() {
     const [loadedDecks, loadedCards, loadedHistory] = await Promise.all([
       listDecks(),
@@ -446,7 +472,7 @@ function AppInner() {
                   { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
                   { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
                   { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
-                  { key: 'public', icon: BookOpen, label: 'Public', onClick: () => setActiveTab('public') },
+                  { key: 'public', icon: BookOpen, label: 'Group Library', onClick: () => setActiveTab('public') },
                   { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
                   { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
                 ].map((item) => {
@@ -566,7 +592,7 @@ function AppInner() {
                       { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => { setActiveTab('quiz'); setShowMobileMenu(false); } },
                       { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => { setActiveTab('weak'); setShowMobileMenu(false); } },
                     ] : []),
-                    { key: 'public', icon: BookOpen, label: 'Public', onClick: () => { setActiveTab('public'); setShowMobileMenu(false); } },
+                    { key: 'public', icon: BookOpen, label: 'Group Library', onClick: () => { setActiveTab('public'); setShowMobileMenu(false); } },
                     { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => { setActiveTab('stats'); setShowMobileMenu(false); } },
                     { key: 'search', icon: Search, label: 'Search', onClick: () => { setActiveTab('search'); setShowMobileMenu(false); } },
                   ].map((item) => {
