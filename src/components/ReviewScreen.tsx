@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, type FC } from 'react';
+import { useState, useEffect, useRef, useMemo, type FC } from 'react';
 import { Card, Deck, ReviewHistory } from '../types';
 import { calculateSM2, getLocalDateString, isDue } from '../utils/sm2';
 import { NetworkTopologyRenderer } from './NetworkTopologyRenderer';
-import { RotateCcw, Keyboard, Lightbulb, Brain, Loader2 } from 'lucide-react';
+import { RotateCcw, Keyboard, Lightbulb, Brain, Loader2, Volume2, Star, Timer, Play, Pause, RotateCcw as ResetIcon } from 'lucide-react';
 import { explainConcept, createGroqClient, getAiConfig } from '../utils/groq';
 import { getSetting } from '../db/queries';
 import { isFeatureAvailable } from '../utils/premium';
@@ -29,6 +29,7 @@ interface ReviewScreenProps {
   cards: Card[];
   reviewHistory: ReviewHistory[];
   onReviewCard: (cardId: string, rating: 1 | 2 | 3 | 4) => void;
+  onToggleBookmark: (cardId: string, bookmarked: boolean) => void;
   onGoBack: () => void;
 }
 
@@ -37,6 +38,7 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
   cards,
   reviewHistory,
   onReviewCard,
+  onToggleBookmark,
   onGoBack,
 }) => {
   const todayStr = getLocalDateString();
@@ -70,6 +72,68 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
 
   // Ref for keyboard visual tip timeout
   const [showShortcutTip, setShowShortcutTip] = useState(true);
+
+  // Pomodoro timer
+  const POMODORO_FOCUS = 25 * 60;
+  const POMODORO_BREAK = 5 * 60;
+  const [pomodoroActive, setPomodoroActive] = useState(false);
+  const [pomodoroSeconds, setPomodoroSeconds] = useState(POMODORO_FOCUS);
+  const [pomodoroPhase, setPomodoroPhase] = useState<'focus' | 'break'>('focus');
+  const pomodoroStartRef = useRef<number | null>(null);
+  const pomodoroElapsedRef = useRef(0);
+
+  useEffect(() => {
+    if (!pomodoroActive) return;
+    pomodoroStartRef.current = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - pomodoroStartRef.current!) / 1000) + pomodoroElapsedRef.current;
+      const total = pomodoroPhase === 'focus' ? POMODORO_FOCUS : POMODORO_BREAK;
+      const remaining = Math.max(0, total - elapsed);
+      setPomodoroSeconds(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        if (pomodoroPhase === 'focus') {
+          setPomodoroPhase('break');
+          setPomodoroSeconds(POMODORO_BREAK);
+          pomodoroElapsedRef.current = 0;
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Focus session complete!', { body: 'Time for a 5-minute break.' });
+          }
+        } else {
+          setPomodoroPhase('focus');
+          setPomodoroSeconds(POMODORO_FOCUS);
+          pomodoroElapsedRef.current = 0;
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Break over!', { body: 'Back to studying.' });
+          }
+        }
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [pomodoroActive, pomodoroPhase]);
+
+  const togglePomodoro = () => {
+    if (pomodoroActive) {
+      pomodoroElapsedRef.current += Math.floor((Date.now() - pomodoroStartRef.current!) / 1000);
+      setPomodoroActive(false);
+    } else {
+      setPomodoroActive(true);
+      pomodoroStartRef.current = Date.now();
+    }
+  };
+
+  const resetPomodoro = () => {
+    setPomodoroActive(false);
+    pomodoroElapsedRef.current = 0;
+    setPomodoroSeconds(POMODORO_FOCUS);
+    setPomodoroPhase('focus');
+  };
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -258,6 +322,21 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
     }
   };
 
+  const handleSpeak = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.lang = 'en-US';
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleToggleBookmark = () => {
+    if (!activeCard) return;
+    onToggleBookmark(activeCard.id, !activeCard.bookmarked);
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       {/* Review Header Navigation */}
@@ -304,9 +383,29 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
         {/* Card Front Content */}
         <div className="space-y-4 flex-grow">
           <div className="flex flex-wrap items-center justify-between gap-1">
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-widest uppercase bg-[#0D1117] border border-[#30363D] text-[#8B949E]">
-              {activeCard.tag}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-widest uppercase bg-[#0D1117] border border-[#30363D] text-[#8B949E]">
+                {activeCard.tag}
+              </span>
+              <button
+                onClick={handleToggleBookmark}
+                className={`p-1 rounded transition-colors cursor-pointer ${
+                  activeCard.bookmarked
+                    ? 'text-[#E3B341] hover:text-[#F0C24F]'
+                    : 'text-[#484F58] hover:text-[#8B949E]'
+                }`}
+                title={activeCard.bookmarked ? 'Remove bookmark' : 'Bookmark this card'}
+              >
+                <Star size={12} fill={activeCard.bookmarked ? 'currentColor' : 'none'} />
+              </button>
+              <button
+                onClick={() => handleSpeak(activeCard.front)}
+                className="p-1 rounded text-[#484F58] hover:text-[#58A6FF] transition-colors cursor-pointer"
+                title="Read aloud"
+              >
+                <Volume2 size={12} />
+              </button>
+            </div>
             <div className="flex items-center gap-1.5 text-[9px] font-mono text-[#8B949E]">
               <span>INT: {activeCard.interval}D</span>
               <span>EF: {activeCard.easeFactor}</span>
@@ -379,6 +478,13 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
               <div className="flex items-center space-x-1.5 text-[#E3B341]">
                 <Lightbulb size={12} />
                 <span className="text-[9px] font-mono tracking-widest uppercase font-bold">Verified Answer Solution</span>
+                <button
+                  onClick={() => handleSpeak(activeCard.back)}
+                  className="ml-1 p-0.5 rounded text-[#484F58] hover:text-[#58A6FF] transition-colors cursor-pointer"
+                  title="Read answer aloud"
+                >
+                  <Volume2 size={10} />
+                </button>
               </div>
 
               <div className="text-xs text-[#E0E0E0] leading-relaxed space-y-2 whitespace-pre-line font-mono">
@@ -473,6 +579,31 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
           </button>
         </div>
       )}
+
+      {/* Pomodoro Timer */}
+      <div className="flex items-center justify-between p-2 sm:p-2.5 rounded border border-[#2D333B] bg-[#161B22]">
+        <div className="flex items-center gap-2">
+          <Timer size={12} className="text-[#388BFD]" />
+          <span className="text-[10px] font-mono font-bold text-white tracking-wider">{formatTime(pomodoroSeconds)}</span>
+          <span className="text-[8px] font-mono text-[#8B949E] uppercase tracking-wider">{pomodoroPhase === 'focus' ? 'Focus' : 'Break'}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={togglePomodoro}
+            className={`p-1 rounded transition-colors cursor-pointer ${pomodoroActive ? 'text-[#F85149] hover:bg-[#F85149]/10' : 'text-[#3FB950] hover:bg-[#3FB950]/10'}`}
+            title={pomodoroActive ? 'Pause' : 'Start'}
+          >
+            {pomodoroActive ? <Pause size={13} /> : <Play size={13} />}
+          </button>
+          <button
+            onClick={resetPomodoro}
+            className="p-1 rounded text-[#8B949E] hover:text-white hover:bg-[#30363D] transition-colors cursor-pointer"
+            title="Reset"
+          >
+            <ResetIcon size={12} />
+          </button>
+        </div>
+      </div>
 
       {/* Rating Control Actions Grid (Shown only after answer is revealed) */}
       {isRevealed && (
