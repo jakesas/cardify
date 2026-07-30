@@ -1,7 +1,7 @@
 import { useState, useEffect, type FC } from 'react';
-import { listSharedDecks, getSharedDeck, uploadSharedDeck, incrementDownload, type SharedDeckMeta, type SharedDeck } from '../lib/community';
+import { listSharedDecks, getSharedDeck, uploadSharedDeck, incrementDownload, deleteSharedDeck, type SharedDeckMeta, type SharedDeck } from '../lib/community';
 import { DEMO_DECKS_META, DEMO_DECKS_CARDS } from '../data/demoDecks';
-import { Search, Download, Upload, ArrowLeft, Users, BookOpen, Tag, Clock, AlertCircle, Check, Globe } from 'lucide-react';
+import { Search, Download, Upload, ArrowLeft, Users, BookOpen, Tag, Clock, AlertCircle, Check, Globe, Trash2 } from 'lucide-react';
 
 interface CommunityGalleryScreenProps {
   userId?: string;
@@ -56,6 +56,17 @@ export const CommunityGalleryScreen: FC<CommunityGalleryScreenProps> = ({ userId
       setSelectedDeck({ ...meta, cards });
     } else {
       setError('Could not load deck details');
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, deckId: string) => {
+    e.stopPropagation();
+    if (!confirm('Delete this shared deck permanently?')) return;
+    const result = await deleteSharedDeck(deckId);
+    if (result.success) {
+      setFirestoreDecks(prev => prev.filter(d => d.id !== deckId));
+    } else {
+      setError(result.error || 'Failed to delete deck');
     }
   };
 
@@ -210,10 +221,17 @@ export const CommunityGalleryScreen: FC<CommunityGalleryScreenProps> = ({ userId
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map(meta => (
             <div key={meta.id}
-              className="p-3.5 rounded border border-[#2D333B] hover:border-[#30363D] bg-[#161B22] hover:bg-[#1C2128] transition-all cursor-pointer"
+              className="p-3.5 rounded border border-[#2D333B] hover:border-[#30363D] bg-[#161B22] hover:bg-[#1C2128] transition-all cursor-pointer group"
               onClick={() => handleViewDeck(meta.id)}>
               <div className="space-y-2.5">
-                <h3 className="text-xs font-bold text-white uppercase leading-tight truncate">{meta.title}</h3>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-xs font-bold text-white uppercase leading-tight truncate">{meta.title}</h3>
+                  {userId && meta.authorId === userId && (
+                    <button onClick={e => handleDelete(e, meta.id)} className="opacity-0 group-hover:opacity-100 text-[#8B949E] hover:text-[#F85149] p-1 rounded hover:bg-[#F85149]/10 transition-all shrink-0" title="Delete your deck">
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
                 <p className="text-[9px] text-[#8B949E] line-clamp-2 leading-relaxed">{meta.description}</p>
 
                 <div className="flex flex-wrap items-center gap-2 text-[8px] font-mono text-[#8B949E]">
