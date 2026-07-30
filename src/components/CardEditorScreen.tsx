@@ -92,6 +92,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
   const [selectedPreset, setSelectedPreset] = useState('none');
   const [codeSnippetText, setCodeSnippetText] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -332,7 +333,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                   {cardType === 'cloze' ? 'Text with Cloze Deletions *' : 'Front / Question Content *'}
                 </label>
                 <textarea
-                  placeholder={cardType === 'cloze' ? "The OSI model has {{c1::7}} layers. The {{c2::transport}} layer handles segmentation." : "e.g., What command displays the configuration of active subinterfaces on Router-1?"}
+                  placeholder={cardType === 'cloze' ? "The OSI model has {{c1::7}} layers. The {{c2::transport}} layer handles segmentation." : "e.g., What is the formula for calculating velocity?"}
                   value={frontText}
                   onChange={(e) => setFrontText(e.target.value)}
                   className="w-full h-16 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
@@ -351,7 +352,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                   Back / {cardType === 'cloze' ? 'Extra (optional)' : 'Answer & Explanation *'}
                 </label>
                 <textarea
-                  placeholder={cardType === 'cloze' ? "Add extra notes or context (optional for cloze cards)" : "Provide a detailed explanation. Code snippets can be placed here with Markdown ``` formatting."}
+                  placeholder={cardType === 'cloze' ? "Add extra notes or context (optional for cloze cards)" : "Write the full answer here. You can use Markdown to format text, add code snippets, or bullet points."}
                   value={backText}
                   onChange={(e) => setBackText(e.target.value)}
                   className="w-full h-24 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
@@ -378,38 +379,52 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                 />
               </div>
 
-              {/* Optional Code Snippet Input */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase block flex items-center space-x-1 font-bold">
-                  <Code size={11} className="text-[#8B949E]" />
-                  <span>Optional IOS CLI Command Snippet</span>
-                </label>
-                <textarea
-                  placeholder="Switch# show interfaces trunk"
-                  value={codeSnippetText}
-                  onChange={(e) => setCodeSnippetText(e.target.value)}
-                  className="w-full h-12 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#388BFD] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
-                  maxLength={150}
-                />
-              </div>
+              {/* More Options Toggle */}
+              <button
+                type="button"
+                onClick={() => setShowMoreOptions(!showMoreOptions)}
+                className="flex items-center space-x-1.5 w-full px-2.5 py-1.5 rounded border border-dashed border-[#30363D] bg-transparent text-[9px] font-mono text-[#8B949E] hover:text-white hover:border-[#E3B341]/50 transition-colors cursor-pointer"
+              >
+                <span className="text-[11px]">{showMoreOptions ? '▾' : '▸'}</span>
+                <span>{showMoreOptions ? 'Hide advanced options' : 'Advanced: code snippet & diagram (optional)'}</span>
+              </button>
 
-              {/* Optional Topology Preset */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase block font-bold">
-                  Embed Topology Diagram Preset
-                </label>
-                <select
-                  value={selectedPreset}
-                  onChange={(e) => setSelectedPreset(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] cursor-pointer"
-                >
-                  {TOPOLOGY_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.name.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {showMoreOptions && (
+                <div className="space-y-3 pl-2 border-l-2 border-[#2D333B]">
+                  {/* Optional Code Snippet Input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase block flex items-center space-x-1 font-bold">
+                      <Code size={11} className="text-[#8B949E]" />
+                      <span>Optional Code Snippet</span>
+                    </label>
+                    <textarea
+                      placeholder="e.g., print('hello') or E = mc² or show ip route"
+                      value={codeSnippetText}
+                      onChange={(e) => setCodeSnippetText(e.target.value)}
+                      className="w-full h-12 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#388BFD] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
+                      maxLength={150}
+                    />
+                  </div>
+
+                  {/* Optional Topology Preset */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono tracking-wider text-[#8B949E] uppercase block font-bold">
+                      Embed Topology Diagram
+                    </label>
+                    <select
+                      value={selectedPreset}
+                      onChange={(e) => setSelectedPreset(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] cursor-pointer"
+                    >
+                      {TOPOLOGY_PRESETS.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.name.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {errorMsg && (
                 <div className="flex items-center space-x-1.5 text-[#F85149] text-xs bg-[#F85149]/10 p-2 rounded border border-[#F85149]/20">

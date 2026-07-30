@@ -71,9 +71,6 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
           <h1 className="text-xl font-bold tracking-tight text-white font-mono">
             Flashcard study instrument
           </h1>
-          <p className="text-xs text-[#8B949E] leading-relaxed">
-            Prepare efficiently across any subject. This high-density study tool uses the SuperMemo SM-2 spacing algorithm to schedule cards based on your performance, minimizing fatigue and maximizing retention.
-          </p>
           
           <div className="flex flex-wrap gap-2 pt-1">
             {recommendedDeck ? (
