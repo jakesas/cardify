@@ -333,7 +333,7 @@ export const CardEditorScreen: FC<CardEditorScreenProps> = ({
                   {cardType === 'cloze' ? 'Text with Cloze Deletions *' : 'Front / Question Content *'}
                 </label>
                 <textarea
-                  placeholder={cardType === 'cloze' ? "The OSI model has {{c1::7}} layers. The {{c2::transport}} layer handles segmentation." : "e.g., What is the formula for calculating velocity?"}
+                  placeholder={cardType === 'cloze' ? "The capital of {{c1::Japan}} is {{c2::Tokyo}}." : "e.g., What is the formula for calculating velocity?"}
                   value={frontText}
                   onChange={(e) => setFrontText(e.target.value)}
                   className="w-full h-16 px-2.5 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 resize-none"
