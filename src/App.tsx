@@ -382,13 +382,13 @@ function AppInner() {
         </div>
       )}
 
-      <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col min-h-screen pb-20 sm:pb-3">
+      <div className="relative z-10 max-w-6xl mx-auto px-3 md:px-6 lg:px-8 py-2 md:py-3 flex flex-col min-h-screen pb-20 md:pb-3">
         <header className="pb-2 mb-3 border-b border-[#2D333B]">
           {/* Three-zone layout: left (brand+timer) | center (nav) | right (actions) */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-0">
             {/* Zone Left: Logo + brand + mobile actions */}
-            <div className="flex items-center justify-between w-full sm:w-auto">
-              <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex items-center justify-between w-full md:w-auto">
+              <div className="flex items-center gap-3 md:gap-4">
                 <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}>
                   <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#E3B341] overflow-hidden flex-shrink-0">
                     <img src={logoSrc} alt="CardifyA.I" className="w-full h-full object-cover" />
@@ -404,11 +404,11 @@ function AppInner() {
                   </div>
                 </div>
 
-                <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden sm:block"></span>
+                <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden md:block"></span>
               </div>
 
               {/* Mobile: avatar + logout inline in top row */}
-              <div className="flex sm:hidden items-center gap-3">
+              <div className="flex md:hidden items-center gap-3">
                 {user?.photoURL ? (
                   <img
                     src={user.photoURL}
@@ -433,7 +433,7 @@ function AppInner() {
             </div>
 
             {/* Zone Center: Nav as segmented control (desktop only) */}
-            <nav className="hidden sm:flex items-center justify-center flex-1 overflow-x-auto scrollbar-none">
+            <nav className="hidden md:flex items-center justify-center flex-1 overflow-x-auto scrollbar-none">
               <div className="flex items-center bg-[#161B22] rounded-lg p-0.5 border border-[#2D333B] gap-0.5">
                 {[
                   { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
@@ -471,7 +471,7 @@ function AppInner() {
             </nav>
 
             {/* Zone Right: desktop actions */}
-            <div className="hidden sm:flex items-center justify-end gap-4">
+            <div className="hidden md:flex items-center justify-end gap-4">
               {premiumState?.status === 'trial' && (
                 <button
                   onClick={() => setShowUpgrade(true)}
@@ -479,7 +479,7 @@ function AppInner() {
                   title="Upgrade to Premium"
                 >
                   <CreditCard size={12} />
-                  <span className="hidden sm:inline">Upgrade</span>
+                  <span className="hidden md:inline">Upgrade</span>
                 </button>
               )}
               {user?.photoURL ? (
@@ -507,7 +507,7 @@ function AppInner() {
         </header>
 
         {/* Mobile bottom tab bar */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#0F1115] border-t border-[#2D333B] flex items-center justify-around px-2 py-1.5 safe-area-bottom">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#0F1115] border-t border-[#2D333B] flex items-center justify-around px-2 py-1.5 safe-area-bottom">
           {[
             { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
             { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
