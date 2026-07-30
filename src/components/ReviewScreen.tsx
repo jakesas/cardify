@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, type FC } from 'react';
 import { Card, Deck, ReviewHistory } from '../types';
 import { calculateSM2, getLocalDateString, isDue } from '../utils/sm2';
 import { NetworkTopologyRenderer } from './NetworkTopologyRenderer';
-import { RotateCcw, Keyboard, Lightbulb, Brain, Loader2, Volume2, Star, Timer, Play, Pause, RotateCcw as ResetIcon } from 'lucide-react';
+import { RotateCcw, Keyboard, Lightbulb, Brain, Loader2, Volume2, Star } from 'lucide-react';
 import { explainConcept, createGroqClient, getAiConfig } from '../utils/groq';
 import { getSetting } from '../db/queries';
 import { isFeatureAvailable } from '../utils/premium';
@@ -72,68 +72,6 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
 
   // Ref for keyboard visual tip timeout
   const [showShortcutTip, setShowShortcutTip] = useState(true);
-
-  // Pomodoro timer
-  const POMODORO_FOCUS = 25 * 60;
-  const POMODORO_BREAK = 5 * 60;
-  const [pomodoroActive, setPomodoroActive] = useState(false);
-  const [pomodoroSeconds, setPomodoroSeconds] = useState(POMODORO_FOCUS);
-  const [pomodoroPhase, setPomodoroPhase] = useState<'focus' | 'break'>('focus');
-  const pomodoroStartRef = useRef<number | null>(null);
-  const pomodoroElapsedRef = useRef(0);
-
-  useEffect(() => {
-    if (!pomodoroActive) return;
-    pomodoroStartRef.current = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - pomodoroStartRef.current!) / 1000) + pomodoroElapsedRef.current;
-      const total = pomodoroPhase === 'focus' ? POMODORO_FOCUS : POMODORO_BREAK;
-      const remaining = Math.max(0, total - elapsed);
-      setPomodoroSeconds(remaining);
-      if (remaining <= 0) {
-        clearInterval(interval);
-        if (pomodoroPhase === 'focus') {
-          setPomodoroPhase('break');
-          setPomodoroSeconds(POMODORO_BREAK);
-          pomodoroElapsedRef.current = 0;
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Focus session complete!', { body: 'Time for a 5-minute break.' });
-          }
-        } else {
-          setPomodoroPhase('focus');
-          setPomodoroSeconds(POMODORO_FOCUS);
-          pomodoroElapsedRef.current = 0;
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Break over!', { body: 'Back to studying.' });
-          }
-        }
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [pomodoroActive, pomodoroPhase]);
-
-  const togglePomodoro = () => {
-    if (pomodoroActive) {
-      pomodoroElapsedRef.current += Math.floor((Date.now() - pomodoroStartRef.current!) / 1000);
-      setPomodoroActive(false);
-    } else {
-      setPomodoroActive(true);
-      pomodoroStartRef.current = Date.now();
-    }
-  };
-
-  const resetPomodoro = () => {
-    setPomodoroActive(false);
-    pomodoroElapsedRef.current = 0;
-    setPomodoroSeconds(POMODORO_FOCUS);
-    setPomodoroPhase('focus');
-  };
-
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -579,31 +517,6 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
           </button>
         </div>
       )}
-
-      {/* Pomodoro Timer */}
-      <div className="flex items-center justify-between p-2 sm:p-2.5 rounded border border-[#2D333B] bg-[#161B22]">
-        <div className="flex items-center gap-2">
-          <Timer size={12} className="text-[#388BFD]" />
-          <span className="text-[10px] font-mono font-bold text-white tracking-wider">{formatTime(pomodoroSeconds)}</span>
-          <span className="text-[8px] font-mono text-[#8B949E] uppercase tracking-wider">{pomodoroPhase === 'focus' ? 'Focus' : 'Break'}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={togglePomodoro}
-            className={`p-1 rounded transition-colors cursor-pointer ${pomodoroActive ? 'text-[#F85149] hover:bg-[#F85149]/10' : 'text-[#3FB950] hover:bg-[#3FB950]/10'}`}
-            title={pomodoroActive ? 'Pause' : 'Start'}
-          >
-            {pomodoroActive ? <Pause size={13} /> : <Play size={13} />}
-          </button>
-          <button
-            onClick={resetPomodoro}
-            className="p-1 rounded text-[#8B949E] hover:text-white hover:bg-[#30363D] transition-colors cursor-pointer"
-            title="Reset"
-          >
-            <ResetIcon size={12} />
-          </button>
-        </div>
-      </div>
 
       {/* Rating Control Actions Grid (Shown only after answer is revealed) */}
       {isRevealed && (
