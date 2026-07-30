@@ -106,7 +106,9 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
           )}
         </div>
         <div className="flex items-center space-x-3 text-[10px] font-mono text-[#8B949E]">
-          <span className="flex items-center space-x-0.5"><Users size={11} /><span>{approvedMembers.length} members</span></span>
+          <span className="flex items-center space-x-1 px-2 py-0.5 bg-[#3FB950]/10 border border-[#3FB950]/20 rounded text-[#3FB950] font-bold">
+            <Users size={11} /><span>{approvedMembers.length} active</span>
+          </span>
           <span>Code: {group.inviteCode}</span>
         </div>
       </div>
@@ -185,7 +187,12 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
           {approvedMembers.map(m => (
             <div key={m.id} className="flex items-center justify-between px-2 py-1.5 bg-[#0D1117] border border-[#30363D] rounded">
               <div className="flex items-center space-x-2">
-                <UserCheck size={12} className="text-[#3FB950]" />
+                <span className="relative flex-shrink-0">
+                  <span className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-[#8B949E]">{m.displayName.charAt(0).toUpperCase()}</span>
+                  </span>
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#3FB950] rounded-full border-2 border-[#0D1117]" />
+                </span>
                 <div>
                   <p className="text-xs font-mono text-white">{m.displayName}</p>
                   <p className="text-[9px] font-mono text-[#8B949E]">{m.role === 'admin' ? 'Admin' : 'Member'}</p>
