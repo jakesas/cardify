@@ -201,6 +201,63 @@ export const StatsScreen: FC<StatsScreenProps> = ({
         </div>
       </div>
 
+      {/* Weekly Summary */}
+      {(() => {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekAgoStr = weekAgo.toISOString().split('T')[0];
+        const weekReviews = history.filter(h => h.timestamp >= weekAgoStr);
+        const weekReviewCount = weekReviews.length;
+        const weekCorrectCount = weekReviews.filter(h => h.rating >= 3).length;
+        const weekRetention = weekReviewCount > 0 ? Math.round((weekCorrectCount / weekReviewCount) * 100) : 0;
+
+        const uniqueDays = new Set(weekReviews.map(h => h.timestamp.split('T')[0]));
+        const weekStreak = uniqueDays.size;
+
+        const prevWeekStart = new Date(weekAgo);
+        prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+        const prevWeekReviews = history.filter(h => {
+          const d = h.timestamp.split('T')[0];
+          return d >= prevWeekStart.toISOString().split('T')[0] && d < weekAgoStr;
+        }).length;
+        const trend = prevWeekReviews > 0 ? Math.round(((weekReviewCount - prevWeekReviews) / prevWeekReviews) * 100) : 0;
+
+        return (
+          <div className="p-4 rounded border border-[#2D333B] bg-gradient-to-r from-[#161B22] to-[#1C2128] space-y-3">
+            <div className="flex items-center justify-between border-b border-[#30363D] pb-1.5">
+              <h3 className="text-[10px] font-bold font-mono tracking-wider uppercase text-[#8B949E] flex items-center gap-1.5">
+                <TrendingUp size={12} className="text-[#3FB950]" />
+                Weekly Summary
+              </h3>
+              <span className="text-[9px] font-mono text-[#8B949E]">{weekAgo.toLocaleDateString()} – today</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="text-center space-y-0.5">
+                <span className="text-lg font-bold text-white">{weekReviewCount}</span>
+                <p className="text-[9px] font-mono text-[#8B949E] uppercase tracking-wider">Reviews</p>
+              </div>
+              <div className="text-center space-y-0.5">
+                <span className="text-lg font-bold text-white">{weekRetention}%</span>
+                <p className="text-[9px] font-mono text-[#8B949E] uppercase tracking-wider">Retention</p>
+              </div>
+              <div className="text-center space-y-0.5">
+                <div className="flex items-center justify-center gap-1">
+                  <Flame size={14} className="text-[#E3B341]" />
+                  <span className="text-lg font-bold text-white">{weekStreak}d</span>
+                </div>
+                <p className="text-[9px] font-mono text-[#8B949E] uppercase tracking-wider">Active Days</p>
+              </div>
+              <div className="text-center space-y-0.5">
+                <span className={`text-lg font-bold ${trend > 0 ? 'text-[#3FB950]' : trend < 0 ? 'text-[#F85149]' : 'text-white'}`}>
+                  {trend > 0 ? '+' : ''}{trend}%
+                </span>
+                <p className="text-[9px] font-mono text-[#8B949E] uppercase tracking-wider">vs prior week</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Visual Analytics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
         {/* Left Card: Due Forecast (Bar Chart) */}
