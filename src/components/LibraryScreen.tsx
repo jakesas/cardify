@@ -13,10 +13,11 @@ import {
 import { DEMO_LIBRARY_RESOURCES } from '../data/demoLibrary';
 import { extractTextFromDocx } from '../utils/docx';
 import { extractTextFromPdf } from '../utils/pdfExtract';
+import { autoFormatStudyContent, splitDocumentIntoPages } from '../utils/textFormatter';
 import {
   BookOpen, Search, Upload, Eye, FileText, Trash2, ArrowLeft,
-  Sparkles, Clock, Tag, Check, AlertCircle, Loader2, ChevronRight,
-  BookmarkPlus, Globe, List, Type, Sun, Moon, Maximize2, Share2, Layers,
+  Sparkles, Clock, Tag, Check, AlertCircle, Loader2, ChevronRight, ChevronLeft,
+  BookmarkPlus, Globe, List, Type, Sun, Moon, Maximize2, Share2, Layers, Wand2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -101,6 +102,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const [readerFontSize, setReaderFontSize] = useState<'normal' | 'large'>('normal');
   const [showTOC, setShowTOC] = useState(true);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [currentReaderPage, setCurrentReaderPage] = useState(0);
 
   // Import Dialog State
   const [importTargetDeckId, setImportTargetDeckId] = useState<string>(decks[0]?.id || '');
@@ -194,6 +196,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     setLoadingContent(true);
     setActiveResource(null);
     setScrollProgress(0);
+    setCurrentReaderPage(0);
 
     if (useFirestore) {
       incrementResourceViews(meta.id);
@@ -201,19 +204,26 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
     const demoFound = DEMO_LIBRARY_RESOURCES.find(d => d.id === meta.id);
     if (demoFound) {
-      setActiveResource(demoFound);
+      const formattedContent = autoFormatStudyContent(demoFound.content);
+      setActiveResource({ ...demoFound, content: formattedContent });
       setLoadingContent(false);
       return;
     }
 
     const res = await getLibraryResource(meta.id);
     if (res.success && res.data) {
-      setActiveResource(res.data);
+      const formattedContent = autoFormatStudyContent(res.data.content);
+      setActiveResource({ ...res.data, content: formattedContent });
     } else {
       alert(res.error || 'Failed to load document content');
     }
     setLoadingContent(false);
   };
+
+  // Compute pages for active document
+  const readerPages = useMemo(() => {
+    return activeResource ? splitDocumentIntoPages(activeResource.content) : [];
+  }, [activeResource]);
 
   // Extract table of contents for active document
   const tocList = useMemo(() => {
@@ -245,12 +255,15 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
         extractedText = await file.text();
       }
 
-      setFormContent(extractedText);
+      // Auto-format raw extracted text into clean structured Markdown
+      const cleanFormatted = autoFormatStudyContent(extractedText);
+      setFormContent(cleanFormatted);
+
       if (!formTitle) {
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
         setFormTitle(cleanName);
       }
-      setExtractionMsg('Text extracted successfully!');
+      setExtractionMsg('Text extracted & auto-formatted successfully!');
     } catch (err: any) {
       console.error(err);
       setPublishError(err?.message || 'Failed to extract text from file');
@@ -774,9 +787,9 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 </div>
               </div>
 
-              {/* Main Document Content */}
+              {/* Main Document Content (Paginated or Continuous) */}
               <div
-                className={`w-full max-w-3xl rounded-2xl p-6 sm:p-12 shadow-2xl border mb-16 ${
+                className={`w-full max-w-3xl rounded-2xl p-6 sm:p-12 shadow-2xl border mb-6 ${
                   readerFontSize === 'large' ? 'text-lg leading-loose' : 'text-base leading-relaxed'
                 }`}
                 style={{
@@ -786,10 +799,52 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
               >
                 <div className="prose-study max-w-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {activeResource.content}
+                    {readerPages[currentReaderPage] || activeResource.content}
                   </ReactMarkdown>
                 </div>
               </div>
+
+              {/* Reader Page Navigation Controls */}
+              {readerPages.length > 1 && (
+                <div
+                  className="w-full max-w-3xl flex items-center justify-between px-5 py-3.5 rounded-xl border mb-16 shadow-lg"
+                  style={{
+                    background: readerThemeStyles.panelBg,
+                    borderColor: readerThemeStyles.border,
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setCurrentReaderPage(p => Math.max(0, p - 1));
+                      readerScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    disabled={currentReaderPage === 0}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-mono font-bold uppercase transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 hover:bg-white/10"
+                  >
+                    <ChevronLeft size={14} />
+                    <span>Previous</span>
+                  </button>
+
+                  <div className="flex items-center gap-2 text-xs font-mono">
+                    <span className="opacity-70">Page</span>
+                    <span className="font-bold text-[#E3B341]">{currentReaderPage + 1}</span>
+                    <span className="opacity-50">/</span>
+                    <span>{readerPages.length}</span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setCurrentReaderPage(p => Math.min(readerPages.length - 1, p + 1));
+                      readerScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    disabled={currentReaderPage >= readerPages.length - 1}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-mono font-bold uppercase transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border border-transparent bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F] shadow-md"
+                  >
+                    <span>Next</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
             </main>
           </div>
         </div>
