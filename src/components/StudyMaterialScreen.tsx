@@ -1,15 +1,17 @@
 import { useState, useMemo, useRef, useEffect, useCallback, type FC } from 'react';
-import { Deck } from '../types';
+import { Deck, Card } from '../types';
 import {
   ArrowLeft, Edit3, Save, BookOpen, Play, ChevronLeft, ChevronRight,
   Timer, Pause, RotateCcw, Clock, Zap,
-  Bold, Italic, Code, Minus, List, Quote, Heading1, Heading2, Heading3,
+  Bold, Italic, Code, Minus, List, Quote, Heading1, Heading2, Heading3, Sparkles,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { generateStudyMaterialFromCards } from '../utils/generateStudyMaterial';
 
 interface StudyMaterialScreenProps {
   deck: Deck;
+  cards: Card[];
   onGoBack: () => void;
   onProceedToReview: () => void;
   onUpdateDeck: (deckId: string, studyMaterial: string) => Promise<void>;
@@ -107,6 +109,7 @@ const PomodoroRing: FC<{ seconds: number; total: number; phase: 'focus' | 'break
 
 export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
   deck,
+  cards,
   onGoBack,
   onProceedToReview,
   onUpdateDeck,
@@ -521,6 +524,32 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
 
               {/* Markdown Toolbar */}
               <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-[#2D333B] bg-[#0D1117]/60">
+
+                {/* Generate from Cards — shown only when cards exist */}
+                {cards.length > 0 && (
+                  <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-[#2D333B]">
+                    <button
+                      type="button"
+                      title={`Auto-build structured notes from your ${cards.length} flashcard${cards.length !== 1 ? 's' : ''}`}
+                      onClick={() => {
+                        const confirmed = !material.trim() ||
+                          window.confirm('This will replace your existing notes with auto-generated structured notes from your flashcards. Continue?');
+                        if (!confirmed) return;
+                        setMaterial(generateStudyMaterialFromCards(cards));
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-mono font-bold cursor-pointer select-none transition-all"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(227,179,65,.15), rgba(240,194,79,.1))',
+                        border: '1px solid rgba(227,179,65,.35)',
+                        color: '#E3B341',
+                        boxShadow: '0 0 8px rgba(227,179,65,.12)',
+                      }}
+                    >
+                      <Sparkles size={11} />
+                      <span>Generate from {cards.length} Cards</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Headings group */}
                 <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-[#2D333B]">

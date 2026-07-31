@@ -666,6 +666,7 @@ function AppInner() {
           {activeTab === 'study' && activeDeck && (
             <StudyMaterialScreen
               deck={activeDeck}
+              cards={cards.filter(c => c.deckId === activeDeck.id)}
               onGoBack={() => setActiveTab('decks')}
               onProceedToReview={() => setActiveTab('review')}
               onUpdateDeck={async (id, material) => {

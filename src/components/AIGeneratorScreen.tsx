@@ -4,6 +4,7 @@ import { createCard, saveAiSession } from '../db/queries';
 import { createGroqClient, generateCardsFromText, cleanOCRText, extractTextFromImageGroq, getAiConfig, type GeneratedCard } from '../utils/groq';
 import { extractTextFromDocx } from '../utils/docx';
 import { chunkText } from '../utils/chunker';
+import { generateStudyMaterial } from '../utils/generateStudyMaterial';
 import { Scan, FileText, Brain, Save, Loader2, AlertCircle, Upload, Check, Trash2, Wand2, File, Clock, Sparkles, Lock, Star } from 'lucide-react';
 import { AIHistoryPanel } from './AIHistoryPanel';
 import { isPremiumActive, type PremiumState } from '../utils/premium';
@@ -310,16 +311,19 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       }
     }
     
-    if (onUpdateDeck && sourceText.trim()) {
+    // ── Auto-generate structured study material from the saved cards ──
+    if (onUpdateDeck) {
       try {
         const targetDeck = decks.find(d => d.id === selectedDeckId);
-        const existingMaterial = targetDeck?.studyMaterial || '';
-        const newMaterial = existingMaterial 
-          ? `${existingMaterial}\n\n---\n\n${sourceText.trim()}` 
-          : sourceText.trim();
+        const structured = generateStudyMaterial(generatedCards);
+        const existingMaterial = targetDeck?.studyMaterial?.trim() || '';
+        // Append a new section if material already exists, otherwise start fresh
+        const newMaterial = existingMaterial
+          ? `${existingMaterial}\n\n---\n\n${structured}`
+          : structured;
         await onUpdateDeck(selectedDeckId, newMaterial);
       } catch (e) {
-        console.error('Failed to append study material:', e);
+        console.error('Failed to generate study material:', e);
       }
     }
     // Save a generate session with deck info
