@@ -572,7 +572,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                   )}
                   <span className="text-[10px] font-mono font-bold text-[#E3B341] tracking-wider">
                     {processingPhase === 'connecting' && 'Connecting to AI...'}
-                    {processingPhase === 'pacing' && `Pacing chunk ${chunkIndex}/${chunkTotal} — waiting to stay within API limits`}
+                    {processingPhase === 'pacing' && `Chunk ${chunkIndex}/${chunkTotal} — cooling down before the next batch`}
                     {processingPhase === 'generating' && (
                       chunkTotal > 1
                         ? `Chunk ${chunkIndex}/${chunkTotal} · ${cardGenProgress}/${cardGenTarget || '?'} cards`
@@ -646,7 +646,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                 <Loader2 size={14} className="animate-spin" />
                 <span>
                   {processingPhase === 'connecting' && 'Connecting to Groq AI...'}
-                  {processingPhase === 'pacing' && `Pacing chunk ${chunkIndex}/${chunkTotal}...`}
+                  {processingPhase === 'pacing' && `Waiting... chunk ${chunkIndex}/${chunkTotal}`}
                   {processingPhase === 'generating' && (chunkTotal > 1
                     ? `Chunk ${chunkIndex}/${chunkTotal} · ${cardGenProgress > 0 ? `${cardGenProgress} cards` : 'generating...'}`
                     : `Generating${cardGenProgress > 0 ? ` ${cardGenProgress} cards` : '...'}`
