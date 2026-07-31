@@ -19,8 +19,9 @@ import { JoinGroupDialog } from './components/JoinGroupDialog';
 import { GroupDeckUploadDialog } from './components/GroupDeckUploadDialog';
 import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
+import { LibraryScreen } from './components/LibraryScreen';
 import logoSrc from '/logo.png';
-import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe, Users } from 'lucide-react';
+import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe, Users, BookOpen } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { PaymentScreen } from './components/PaymentScreen';
@@ -40,7 +41,7 @@ function AppInner() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'groups' | 'group-detail'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'library' | 'groups' | 'group-detail'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [shareDeckId, setShareDeckId] = useState<string | null>(null);
   const [importDeckShareId, setImportDeckShareId] = useState<string | null>(null);
@@ -491,6 +492,7 @@ function AppInner() {
                     { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
                   ] : []),
                   { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
+                  { key: 'library', icon: BookOpen, label: 'Library', onClick: () => setActiveTab('library') },
                   { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
                   { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
                   { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => setActiveTab('stats') },
@@ -735,6 +737,22 @@ function AppInner() {
             <CommunityGalleryScreen
               userId={user?.uid}
               onImportDeck={handleImportCommunityDeck}
+            />
+          )}
+
+          {activeTab === 'library' && (
+            <LibraryScreen
+              decks={decks}
+              userId={user?.uid}
+              userName={user?.displayName || user?.email || undefined}
+              onImportToDeck={async (deckId, material) => {
+                const { updateDeckStudyMaterial } = await import('./db/queries');
+                await updateDeckStudyMaterial(deckId, material);
+                setDecks(decks.map(d => d.id === deckId ? { ...d, studyMaterial: material } : d));
+              }}
+              onOpenAiGeneratorWithText={() => {
+                setActiveTab('ai');
+              }}
             />
           )}
 
