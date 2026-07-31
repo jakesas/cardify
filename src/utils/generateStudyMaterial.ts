@@ -15,22 +15,31 @@ interface RawCard {
 export function generateStudyMaterial(cards: RawCard[]): string {
   if (!cards.length) return '';
 
-  // ── 1. Group cards by tag ──────────────────────────────────────────
+  // ── 1. Deduplicate by front+back (case-insensitive) ───────────────
+  const seen = new Set<string>();
+  const unique = cards.filter(card => {
+    const key = `${card.front.trim().toLowerCase()}|||${card.back.trim().toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // ── 2. Group unique cards by tag ───────────────────────────────────
   const groups = new Map<string, RawCard[]>();
-  for (const card of cards) {
+  for (const card of unique) {
     const tag = (card.tag || 'General').trim();
     if (!groups.has(tag)) groups.set(tag, []);
     groups.get(tag)!.push(card);
   }
 
-  // ── 2. Sort tags alphabetically (General always last) ─────────────
+  // ── 3. Sort tags alphabetically (General always last) ──────────────
   const sortedTags = [...groups.keys()].sort((a, b) => {
     if (a === 'General') return 1;
     if (b === 'General') return -1;
     return a.localeCompare(b);
   });
 
-  // ── 3. Build Markdown output ──────────────────────────────────────
+  // ── 4. Build Markdown output ──────────────────────────────────────
   const sections: string[] = [];
 
   for (const tag of sortedTags) {

@@ -311,17 +311,12 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       }
     }
     
-    // ── Auto-generate structured study material from the saved cards ──
+    // ── Auto-generate structured study material from ALL deck cards ──
+    // Always fully replaces (never appends) so re-saving never creates duplicates.
     if (onUpdateDeck) {
       try {
-        const targetDeck = decks.find(d => d.id === selectedDeckId);
         const structured = generateStudyMaterial(generatedCards);
-        const existingMaterial = targetDeck?.studyMaterial?.trim() || '';
-        // Append a new section if material already exists, otherwise start fresh
-        const newMaterial = existingMaterial
-          ? `${existingMaterial}\n\n---\n\n${structured}`
-          : structured;
-        await onUpdateDeck(selectedDeckId, newMaterial);
+        await onUpdateDeck(selectedDeckId, structured);
       } catch (e) {
         console.error('Failed to generate study material:', e);
       }
