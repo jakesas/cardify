@@ -3,6 +3,7 @@ import { Deck } from '../types';
 import {
   ArrowLeft, Edit3, Save, BookOpen, Play, ChevronLeft, ChevronRight,
   Timer, Pause, RotateCcw, Clock, Zap,
+  Bold, Italic, Code, Minus, List, Quote, Heading1, Heading2, Heading3,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -50,6 +51,18 @@ function readingTime(text: string): number {
   const words = text.trim().split(/\s+/).length;
   return Math.max(1, Math.ceil(words / 200));
 }
+
+/** Reusable toolbar button for the markdown editor */
+const ToolbarBtn: FC<{ title: string; onClick: () => void; children: React.ReactNode }> = ({ title, onClick, children }) => (
+  <button
+    type="button"
+    title={title}
+    onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+    className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono font-semibold text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-all cursor-pointer select-none"
+  >
+    {children}
+  </button>
+);
 
 /** Circular SVG ring for the Pomodoro timer */
 const PomodoroRing: FC<{ seconds: number; total: number; phase: 'focus' | 'break'; active: boolean }> = ({
@@ -170,7 +183,38 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
   const pages = useMemo(() => splitIntoPages(material), [material]);
   const totalPages = pages.length;
   const contentRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const estimatedMinutes = useMemo(() => readingTime(material), [material]);
+  const wordCount = useMemo(() => material.trim() ? material.trim().split(/\s+/).length : 0, [material]);
+
+  /** Insert markdown syntax at cursor position or wrap selection */
+  const insertMarkdown = useCallback((syntax: string, wrap?: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = material.slice(start, end);
+    let newText: string;
+    let cursorPos: number;
+
+    if (wrap) {
+      // Wrapping syntax e.g. **text**
+      newText = material.slice(0, start) + wrap + (selected || 'text') + wrap + material.slice(end);
+      cursorPos = selected ? end + wrap.length * 2 : start + wrap.length + 4;
+    } else {
+      // Prefix syntax e.g. ## or - or >
+      const lineStart = material.lastIndexOf('\n', start - 1) + 1;
+      newText = material.slice(0, lineStart) + syntax + material.slice(lineStart);
+      cursorPos = start + syntax.length;
+    }
+
+    setMaterial(newText);
+    // Restore focus & cursor after React re-render
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(cursorPos, cursorPos);
+    }, 0);
+  }, [material]);
 
   /** Animated page navigation */
   const navigatePage = useCallback((dir: 'next' | 'prev') => {
@@ -473,17 +517,75 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
         >
           {isEditing ? (
             /* ── Editor Mode ── */
-            <div className="flex-grow flex flex-col p-5 gap-3">
-              <div className="flex items-center gap-2 text-[#8B949E] text-xs font-mono pb-2 border-b border-[#2D333B]">
-                <BookOpen size={13} />
-                <span>Markdown supported · <strong className="text-[#E3B341]">**bold**</strong>, <em className="text-[#93C5FD] not-italic">*italic*</em>, <code className="bg-[#0D1117] px-1 rounded text-[#93C5FD]">`code`</code>, ## Heading</span>
+            <div className="flex-grow flex flex-col">
+
+              {/* Markdown Toolbar */}
+              <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-[#2D333B] bg-[#0D1117]/60">
+
+                {/* Headings group */}
+                <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-[#2D333B]">
+                  <ToolbarBtn title="Page Section (##)" onClick={() => insertMarkdown('## ')}>
+                    <Heading1 size={13} />
+                    <span>Section</span>
+                  </ToolbarBtn>
+                  <ToolbarBtn title="Sub-topic (###)" onClick={() => insertMarkdown('### ')}>
+                    <Heading2 size={13} />
+                    <span>Sub-topic</span>
+                  </ToolbarBtn>
+                  <ToolbarBtn title="Detail heading (####)" onClick={() => insertMarkdown('#### ')}>
+                    <Heading3 size={13} />
+                    <span>Detail</span>
+                  </ToolbarBtn>
+                </div>
+
+                {/* Inline format group */}
+                <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-[#2D333B]">
+                  <ToolbarBtn title="Bold (**text**)" onClick={() => insertMarkdown('', '**')}>
+                    <Bold size={13} />
+                    <span>Bold</span>
+                  </ToolbarBtn>
+                  <ToolbarBtn title="Italic (*text*)" onClick={() => insertMarkdown('', '*')}>
+                    <Italic size={13} />
+                    <span>Italic</span>
+                  </ToolbarBtn>
+                  <ToolbarBtn title="Inline code (`code`)" onClick={() => insertMarkdown('', '`')}>
+                    <Code size={13} />
+                    <span>Code</span>
+                  </ToolbarBtn>
+                </div>
+
+                {/* Block format group */}
+                <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-[#2D333B]">
+                  <ToolbarBtn title="Bullet list (- item)" onClick={() => insertMarkdown('- ')}>
+                    <List size={13} />
+                    <span>List</span>
+                  </ToolbarBtn>
+                  <ToolbarBtn title="Blockquote / tip (> text)" onClick={() => insertMarkdown('> ')}>
+                    <Quote size={13} />
+                    <span>Quote</span>
+                  </ToolbarBtn>
+                  <ToolbarBtn title="Divider (---)" onClick={() => insertMarkdown('---\n')}>
+                    <Minus size={13} />
+                    <span>Divider</span>
+                  </ToolbarBtn>
+                </div>
+
+                {/* Word count */}
+                <div className="ml-auto flex items-center gap-1 text-[9px] font-mono text-[#484F58]">
+                  <span>{wordCount.toLocaleString()} words</span>
+                  <span className="text-[#2D333B]">·</span>
+                  <span>~{estimatedMinutes} min read</span>
+                </div>
               </div>
+
+              {/* Textarea */}
               <textarea
+                ref={textareaRef}
                 value={material}
                 onChange={(e) => setMaterial(e.target.value)}
-                placeholder={`## Introduction\n\nSubnet Mask – Defines the network and host portions...\n\n## Key Concepts\n\n- **VLAN** – A logical broadcast domain\n- **DHCP** – Automatically assigns IP addresses`}
-                className="flex-grow w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-4 text-[#E0E0E0] text-sm font-mono focus:outline-none focus:border-[#E3B341] resize-none leading-relaxed"
-                style={{ minHeight: '52vh', transition: 'border-color 0.2s ease' }}
+                placeholder={`## CCNA-1 — History of the Internet\n\n### 1. ARPANET (1969)\n\n- Created by **ARPA** (US research agency)\n- Used **NCP** (Network Control Program)\n\n---\n\n### 2. TCP/IP (1970s)\n\n> 💡 **TCP** = Safe delivery 📦  |  **IP** = Finds the address 📍`}
+                className="flex-grow w-full bg-[#0D1117] p-5 text-[#E0E0E0] text-sm font-mono focus:outline-none resize-none leading-relaxed"
+                style={{ minHeight: '50vh', borderTop: 'none' }}
               />
             </div>
           ) : material.trim() ? (
