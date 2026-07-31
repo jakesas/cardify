@@ -32,31 +32,22 @@ interface LibraryScreenProps {
 
 const SUBJECT_THEMES: Record<string, { bg: string; text: string; border: string; iconColor: string; gradient: string }> = {
   Communication: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
-  'IT & Systems': { bg: 'rgba(56, 139, 253, 0.12)', text: '#58A6FF', border: 'rgba(56, 139, 253, 0.3)', iconColor: '#58A6FF', gradient: 'linear-gradient(135deg, rgba(56,139,253,0.15) 0%, rgba(56,139,253,0.02) 100%)' },
-  'Computer Science': { bg: 'rgba(163, 113, 247, 0.12)', text: '#BC8CFF', border: 'rgba(163, 113, 247, 0.3)', iconColor: '#BC8CFF', gradient: 'linear-gradient(135deg, rgba(163,113,247,0.15) 0%, rgba(163,113,247,0.02) 100%)' },
-  Mathematics: { bg: 'rgba(63, 185, 80, 0.12)', text: '#3FB950', border: 'rgba(63, 185, 80, 0.3)', iconColor: '#3FB950', gradient: 'linear-gradient(135deg, rgba(63,185,80,0.15) 0%, rgba(63,185,80,0.02) 100%)' },
-  Science: { bg: 'rgba(248, 81, 73, 0.12)', text: '#F85149', border: 'rgba(248, 81, 73, 0.3)', iconColor: '#F85149', gradient: 'linear-gradient(135deg, rgba(248,81,73,0.15) 0%, rgba(248,81,73,0.02) 100%)' },
-  Business: { bg: 'rgba(210, 153, 34, 0.12)', text: '#D29922', border: 'rgba(210, 153, 34, 0.3)', iconColor: '#D29922', gradient: 'linear-gradient(135deg, rgba(210,153,34,0.15) 0%, rgba(210,153,34,0.02) 100%)' },
-  General: { bg: 'rgba(46, 160, 67, 0.12)', text: '#2EA043', border: 'rgba(46, 160, 67, 0.3)', iconColor: '#2EA043', gradient: 'linear-gradient(135deg, rgba(46,160,67,0.15) 0%, rgba(46,160,67,0.02) 100%)' },
+  'IT & Systems': { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
+  'Computer Science': { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
+  Mathematics: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
+  Science: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
+  Business: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
+  General: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
 };
 
 function getSubjectTheme(subject: string) {
   if (SUBJECT_THEMES[subject]) return SUBJECT_THEMES[subject];
-  // Fallback hash theme generator for any custom subject
-  const colors = [
-    { text: '#E3B341', bg: 'rgba(227, 179, 65, 0.12)', border: 'rgba(227, 179, 65, 0.3)' },
-    { text: '#58A6FF', bg: 'rgba(56, 139, 253, 0.12)', border: 'rgba(56, 139, 253, 0.3)' },
-    { text: '#BC8CFF', bg: 'rgba(163, 113, 247, 0.12)', border: 'rgba(163, 113, 247, 0.3)' },
-    { text: '#3FB950', bg: 'rgba(63, 185, 80, 0.12)', border: 'rgba(63, 185, 80, 0.3)' },
-    { text: '#F85149', bg: 'rgba(248, 81, 73, 0.12)', border: 'rgba(248, 81, 73, 0.3)' },
-  ];
-  let hash = 0;
-  for (let i = 0; i < subject.length; i++) hash = subject.charCodeAt(i) + ((hash << 5) - hash);
-  const c = colors[Math.abs(hash) % colors.length];
   return {
-    ...c,
-    iconColor: c.text,
-    gradient: `linear-gradient(135deg, ${c.bg} 0%, rgba(13,17,23,0.8) 100%)`,
+    text: '#E3B341',
+    bg: 'rgba(227, 179, 65, 0.12)',
+    border: 'rgba(227, 179, 65, 0.3)',
+    iconColor: '#E3B341',
+    gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(13,17,23,0.8) 100%)',
   };
 }
 
@@ -486,7 +477,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 {/* Accent Top Strip */}
                 <div
                   className="absolute top-0 left-0 right-0 h-1 transition-all duration-300 group-hover:h-1.5"
-                  style={{ background: theme.text }}
+                  style={{ background: '#E3B341' }}
                 />
 
                 <div className="space-y-3.5 pt-1">
@@ -547,7 +538,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 <div className="mt-5 pt-3.5 border-t border-[#2D333B] flex items-center justify-between text-[10px] font-mono text-[#8B949E]">
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1" title="Views">
-                      <Eye size={12} className="text-[#388BFD]" /> {item.views || 0}
+                      <Eye size={12} className="text-[#E3B341]" /> {item.views || 0}
                     </span>
                     <span className="flex items-center gap-1" title="Imports">
                       <BookmarkPlus size={12} className="text-[#3FB950]" /> {item.importsCount || 0}
@@ -740,56 +731,45 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
               onScroll={handleReaderScroll}
               className="flex-1 overflow-y-auto p-4 sm:p-10 flex flex-col items-center"
             >
-              {/* Document Cover Banner */}
+              {/* Document Cover Banner — compact slim strip */}
               <div
-                className="w-full max-w-3xl rounded-2xl p-6 sm:p-8 mb-8 border"
+                className="w-full max-w-5xl rounded-xl px-4 py-2 mb-4 border flex items-center gap-3 flex-wrap"
                 style={{
                   background: getSubjectTheme(activeResource.subject).gradient,
                   borderColor: readerThemeStyles.border,
                 }}
               >
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span
-                    className="px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest"
-                    style={{
-                      background: getSubjectTheme(activeResource.subject).bg,
-                      color: getSubjectTheme(activeResource.subject).text,
-                      border: `1px solid ${getSubjectTheme(activeResource.subject).border}`,
-                    }}
-                  >
-                    {activeResource.subject}
-                  </span>
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-black/30 border border-white/10">
-                    FORMAT: {activeResource.fileType.toUpperCase()}
-                  </span>
-                </div>
+                {/* Subject badge */}
+                <span
+                  className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-widest shrink-0"
+                  style={{
+                    background: getSubjectTheme(activeResource.subject).bg,
+                    color: getSubjectTheme(activeResource.subject).text,
+                    border: `1px solid ${getSubjectTheme(activeResource.subject).border}`,
+                  }}
+                >
+                  {activeResource.subject}
+                </span>
 
-                <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight mb-3 leading-tight">
+                {/* Title */}
+                <span className="text-sm font-bold tracking-tight truncate flex-1 min-w-0">
                   {activeResource.title}
-                </h1>
+                </span>
 
-                {activeResource.description && (
-                  <p className="text-sm opacity-80 leading-relaxed mb-4">
-                    {activeResource.description}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap items-center justify-between pt-4 border-t border-white/10 text-xs font-mono opacity-75 gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold">{activeResource.authorName}</span>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <span>👁️ {activeResource.views || 0} views</span>
-                    <span>📥 {activeResource.importsCount || 0} imports</span>
-                    <span>⏱️ ~{activeResource.estimatedReadTime || 1} min read</span>
-                  </div>
+                {/* Meta stats */}
+                <div className="flex items-center gap-3 text-[10px] font-mono opacity-70 shrink-0">
+                  <span>👁️ {activeResource.views || 0}</span>
+                  <span>📥 {activeResource.importsCount || 0}</span>
+                  <span>⏱️ ~{activeResource.estimatedReadTime || 1}m</span>
+                  <span className="px-1.5 py-0.5 rounded bg-black/30 border border-white/10 uppercase">
+                    {activeResource.fileType}
+                  </span>
                 </div>
               </div>
 
               {/* Main Document Content (Paginated or Continuous) */}
               <div
-                className={`w-full max-w-3xl rounded-2xl p-6 sm:p-12 shadow-2xl border mb-6 ${
+                className={`w-full max-w-5xl rounded-2xl p-10 sm:p-16 shadow-2xl border mb-6 min-h-[60vh] ${
                   readerFontSize === 'large' ? 'text-lg leading-loose' : 'text-base leading-relaxed'
                 }`}
                 style={{
@@ -807,7 +787,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
               {/* Reader Page Navigation Controls */}
               {readerPages.length > 1 && (
                 <div
-                  className="w-full max-w-3xl flex items-center justify-between px-5 py-3.5 rounded-xl border mb-16 shadow-lg"
+                  className="w-full max-w-5xl flex items-center justify-between px-5 py-3.5 rounded-xl border mb-16 shadow-lg"
                   style={{
                     background: readerThemeStyles.panelBg,
                     borderColor: readerThemeStyles.border,
