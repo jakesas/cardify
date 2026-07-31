@@ -14,9 +14,9 @@ import { DEMO_LIBRARY_RESOURCES } from '../data/demoLibrary';
 import { extractTextFromDocx } from '../utils/docx';
 import { extractTextFromPdf } from '../utils/pdfExtract';
 import {
-  BookOpen, Search, Upload, Download, Eye, FileText, Plus, Trash2, ArrowLeft,
-  Sparkles, Clock, Tag, Check, AlertCircle, Loader2, File, ChevronRight,
-  BookmarkPlus, FolderPlus, Layers, ShieldCheck, Zap, Globe, HardDrive,
+  BookOpen, Search, Upload, Eye, FileText, Trash2, ArrowLeft,
+  Sparkles, Clock, Tag, Check, AlertCircle, Loader2, ChevronRight,
+  BookmarkPlus, Globe, List, Type, Sun, Moon, Maximize2, Share2, Layers,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,16 +29,35 @@ interface LibraryScreenProps {
   onOpenAiGeneratorWithText?: (text: string) => void;
 }
 
-const SUBJECT_THEMES: Record<string, { bg: string; text: string; border: string; iconColor: string }> = {
-  Networking: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341' },
-  Routing: { bg: 'rgba(56, 139, 253, 0.12)', text: '#58A6FF', border: 'rgba(56, 139, 253, 0.3)', iconColor: '#58A6FF' },
-  Security: { bg: 'rgba(248, 81, 73, 0.12)', text: '#F85149', border: 'rgba(248, 81, 73, 0.3)', iconColor: '#F85149' },
-  Hardware: { bg: 'rgba(163, 113, 247, 0.12)', text: '#BC8CFF', border: 'rgba(163, 113, 247, 0.3)', iconColor: '#BC8CFF' },
-  General: { bg: 'rgba(63, 185, 80, 0.12)', text: '#3FB950', border: 'rgba(63, 185, 80, 0.3)', iconColor: '#3FB950' },
+const SUBJECT_THEMES: Record<string, { bg: string; text: string; border: string; iconColor: string; gradient: string }> = {
+  Networking: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
+  Routing: { bg: 'rgba(56, 139, 253, 0.12)', text: '#58A6FF', border: 'rgba(56, 139, 253, 0.3)', iconColor: '#58A6FF', gradient: 'linear-gradient(135deg, rgba(56,139,253,0.15) 0%, rgba(56,139,253,0.02) 100%)' },
+  Security: { bg: 'rgba(248, 81, 73, 0.12)', text: '#F85149', border: 'rgba(248, 81, 73, 0.3)', iconColor: '#F85149', gradient: 'linear-gradient(135deg, rgba(248,81,73,0.15) 0%, rgba(248,81,73,0.02) 100%)' },
+  Hardware: { bg: 'rgba(163, 113, 247, 0.12)', text: '#BC8CFF', border: 'rgba(163, 113, 247, 0.3)', iconColor: '#BC8CFF', gradient: 'linear-gradient(135deg, rgba(163,113,247,0.15) 0%, rgba(163,113,247,0.02) 100%)' },
+  General: { bg: 'rgba(63, 185, 80, 0.12)', text: '#3FB950', border: 'rgba(63, 185, 80, 0.3)', iconColor: '#3FB950', gradient: 'linear-gradient(135deg, rgba(63,185,80,0.15) 0%, rgba(63,185,80,0.02) 100%)' },
 };
 
 function getSubjectTheme(subject: string) {
   return SUBJECT_THEMES[subject] || SUBJECT_THEMES.General;
+}
+
+/** Extract table of contents (headings) from document markdown */
+function extractTOC(content: string): { title: string; id: string; level: number }[] {
+  if (!content) return [];
+  const lines = content.split('\n');
+  const headings: { title: string; id: string; level: number }[] = [];
+
+  lines.forEach((line) => {
+    const match = line.match(/^(#{1,3})\s+(.+)$/);
+    if (match) {
+      const level = match[1].length;
+      const title = match[2].replace(/[\*\_`]/g, '').trim();
+      const id = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+      headings.push({ title, id, level });
+    }
+  });
+
+  return headings;
 }
 
 export const LibraryScreen: FC<LibraryScreenProps> = ({
@@ -51,7 +70,6 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const [resources, setResources] = useState<LibraryResourceMeta[]>([]);
   const [useFirestore, setUseFirestore] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +79,10 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   // Active Reader Modal
   const [activeResource, setActiveResource] = useState<LibraryResource | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
+  const [readerTheme, setReaderTheme] = useState<'dark' | 'sepia' | 'oled'>('dark');
+  const [readerFontSize, setReaderFontSize] = useState<'normal' | 'large'>('normal');
+  const [showTOC, setShowTOC] = useState(true);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   // Import Dialog State
   const [importTargetDeckId, setImportTargetDeckId] = useState<string>(decks[0]?.id || '');
@@ -85,17 +107,16 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const [publishError, setPublishError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readerScrollRef = useRef<HTMLDivElement>(null);
 
   // Fetch public library list
   const fetchLibrary = async () => {
     setLoading(true);
-    setError('');
     const res = await listLibraryResources();
     if (res.success && res.data && res.data.length > 0) {
       setResources(res.data);
       setUseFirestore(true);
     } else {
-      // Fallback to demo items if empty or firestore unready
       setResources(DEMO_LIBRARY_RESOURCES);
       setUseFirestore(false);
     }
@@ -105,6 +126,15 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   useEffect(() => {
     fetchLibrary();
   }, []);
+
+  // Track reader scroll progress
+  const handleReaderScroll = () => {
+    if (!readerScrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = readerScrollRef.current;
+    const total = scrollHeight - clientHeight;
+    const progress = total > 0 ? (scrollTop / total) * 100 : 0;
+    setScrollProgress(progress);
+  };
 
   // Filtered & Sorted resources
   const filteredResources = useMemo(() => {
@@ -145,13 +175,12 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const handleOpenResource = async (meta: LibraryResourceMeta) => {
     setLoadingContent(true);
     setActiveResource(null);
+    setScrollProgress(0);
 
-    // Increment view count in background
     if (useFirestore) {
       incrementResourceViews(meta.id);
     }
 
-    // Check if demo content
     const demoFound = DEMO_LIBRARY_RESOURCES.find(d => d.id === meta.id);
     if (demoFound) {
       setActiveResource(demoFound);
@@ -159,7 +188,6 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       return;
     }
 
-    // Fetch from Firestore
     const res = await getLibraryResource(meta.id);
     if (res.success && res.data) {
       setActiveResource(res.data);
@@ -168,6 +196,11 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     }
     setLoadingContent(false);
   };
+
+  // Extract table of contents for active document
+  const tocList = useMemo(() => {
+    return activeResource ? extractTOC(activeResource.content) : [];
+  }, [activeResource]);
 
   // Extract text from file upload (.docx, .pdf, .txt)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,7 +229,6 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
       setFormContent(extractedText);
       if (!formTitle) {
-        // Auto-generate title from filename
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
         setFormTitle(cleanName);
       }
@@ -243,7 +275,6 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
     if (res.success) {
       setShowUploadModal(false);
-      // Reset form
       setFormTitle('');
       setFormDescription('');
       setFormContent('');
@@ -290,6 +321,13 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     }
   };
 
+  // Theme styles for Reader View
+  const readerThemeStyles = {
+    dark: { bg: '#0D1117', panelBg: '#161B22', text: '#E0E0E0', border: '#2D333B' },
+    sepia: { bg: '#FBF0D9', panelBg: '#F4E8CE', text: '#433422', border: '#E6D7B8' },
+    oled: { bg: '#000000', panelBg: '#0F0F0F', text: '#EEEEEE', border: '#222222' },
+  }[readerTheme];
+
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto pb-12">
       {/* Header Banner */}
@@ -321,7 +359,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
             <p className="text-xs sm:text-sm text-[#8B949E] max-w-xl leading-relaxed">
               Explore and share study notes, textbook summaries, Word documents, and PDFs.
-              Read any resource instantly or import it directly into your local flashcard deck.
+              Read any resource in our immersive reader or import it into your study deck.
             </p>
           </div>
 
@@ -403,7 +441,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredResources.map(item => {
             const theme = getSubjectTheme(item.subject);
             const isOwner = userId && item.authorId === userId;
@@ -411,13 +449,20 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
             return (
               <div
                 key={item.id}
-                className="group bg-[#161B22] border border-[#2D333B] hover:border-[#E3B341]/50 rounded-xl p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1 relative"
+                onClick={() => handleOpenResource(item)}
+                className="group bg-[#161B22] border border-[#2D333B] hover:border-[#E3B341]/60 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-2xl hover:-translate-y-1.5 cursor-pointer relative overflow-hidden"
               >
-                <div className="space-y-3">
-                  {/* Top Badges */}
+                {/* Accent Top Strip */}
+                <div
+                  className="absolute top-0 left-0 right-0 h-1 transition-all duration-300 group-hover:h-1.5"
+                  style={{ background: theme.text }}
+                />
+
+                <div className="space-y-3.5 pt-1">
+                  {/* Subject Badge & File Format */}
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-mono font-bold uppercase tracking-wider"
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider"
                       style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.border}` }}
                     >
                       <Tag size={10} style={{ color: theme.iconColor }} />
@@ -425,7 +470,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                     </span>
 
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono font-semibold uppercase px-2 py-0.5 bg-[#0D1117] text-[#8B949E] border border-[#30363D] rounded">
+                      <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 bg-[#0D1117] text-[#8B949E] border border-[#30363D] rounded-md">
                         {item.fileType.toUpperCase()}
                       </span>
                       {isOwner && (
@@ -445,11 +490,11 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
                   {/* Title & Description */}
                   <div>
-                    <h3 className="text-sm font-bold text-white group-hover:text-[#E3B341] transition-colors line-clamp-2 leading-snug">
+                    <h3 className="text-base font-bold text-white group-hover:text-[#E3B341] transition-colors line-clamp-2 leading-snug">
                       {item.title}
                     </h3>
                     {item.description && (
-                      <p className="text-xs text-[#8B949E] line-clamp-2 mt-1.5 leading-relaxed">
+                      <p className="text-xs text-[#8B949E] line-clamp-2 mt-2 leading-relaxed">
                         {item.description}
                       </p>
                     )}
@@ -457,9 +502,9 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
                   {/* Tags */}
                   {item.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
+                    <div className="flex flex-wrap gap-1.5 pt-1">
                       {item.tags.slice(0, 3).map((t, idx) => (
-                        <span key={idx} className="text-[9px] font-mono text-[#8B949E] bg-[#0D1117] px-1.5 py-0.5 rounded border border-[#2D333B]">
+                        <span key={idx} className="text-[9px] font-mono text-[#8B949E] bg-[#0D1117] px-2 py-0.5 rounded-md border border-[#2D333B]">
                           #{t}
                         </span>
                       ))}
@@ -468,26 +513,23 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 </div>
 
                 {/* Footer metadata */}
-                <div className="mt-4 pt-3 border-t border-[#2D333B] flex items-center justify-between text-[10px] font-mono text-[#8B949E]">
+                <div className="mt-5 pt-3.5 border-t border-[#2D333B] flex items-center justify-between text-[10px] font-mono text-[#8B949E]">
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1" title="Views">
-                      <Eye size={11} className="text-[#388BFD]" /> {item.views || 0}
+                      <Eye size={12} className="text-[#388BFD]" /> {item.views || 0}
                     </span>
                     <span className="flex items-center gap-1" title="Imports">
-                      <BookmarkPlus size={11} className="text-[#3FB950]" /> {item.importsCount || 0}
+                      <BookmarkPlus size={12} className="text-[#3FB950]" /> {item.importsCount || 0}
                     </span>
                     <span className="flex items-center gap-1" title="Reading time">
-                      <Clock size={11} /> ~{item.estimatedReadTime || 1}m
+                      <Clock size={12} /> ~{item.estimatedReadTime || 1}m
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => handleOpenResource(item)}
-                    className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#E3B341] hover:underline cursor-pointer"
-                  >
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#E3B341] group-hover:translate-x-1 transition-transform">
                     <span>Read</span>
                     <ChevronRight size={12} />
-                  </button>
+                  </span>
                 </div>
               </div>
             );
@@ -495,84 +537,242 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
         </div>
       )}
 
-      {/* ── Document Reader Modal / Screen ── */}
+      {/* ── HIGH-END EBOOK / DOCUMENT READER ── */}
       {loadingContent && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center space-y-3">
-          <Loader2 size={36} className="animate-spin text-[#E3B341]" />
-          <p className="text-sm font-mono text-white">Opening Document Reader...</p>
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center justify-center space-y-3">
+          <Loader2 size={40} className="animate-spin text-[#E3B341]" />
+          <p className="text-sm font-mono text-white tracking-wider">Opening Digital Reader...</p>
         </div>
       )}
 
       {activeResource && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 overflow-y-auto p-4 sm:p-6 animate-fade-in flex flex-col items-center">
-          <div className="w-full max-w-4xl bg-[#161B22] border border-[#30363D] rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto min-h-[80vh]">
-            {/* Reader Header */}
-            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-[#2D333B] bg-[#0D1117]">
-              <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="fixed inset-0 z-50 flex flex-col overflow-hidden animate-fade-in"
+          style={{ background: readerThemeStyles.bg, color: readerThemeStyles.text }}
+        >
+          {/* Top Reading Progress Bar */}
+          <div className="h-1 bg-black/20 w-full relative z-20">
+            <div
+              className="h-full transition-all duration-150"
+              style={{
+                width: `${scrollProgress}%`,
+                background: 'linear-gradient(90deg, #E3B341, #F0C24F)',
+                boxShadow: '0 0 10px rgba(227,179,65,0.6)',
+              }}
+            />
+          </div>
+
+          {/* Reader App Bar */}
+          <header
+            className="flex items-center justify-between px-4 sm:px-6 py-3 border-b z-20"
+            style={{ background: readerThemeStyles.panelBg, borderColor: readerThemeStyles.border }}
+          >
+            {/* Left: Back & Document Metadata */}
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => setActiveResource(null)}
+                className="p-2 rounded-lg transition-colors cursor-pointer opacity-80 hover:opacity-100 hover:bg-white/10"
+                title="Back to Library"
+              >
+                <ArrowLeft size={18} />
+              </button>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#E3B341]">
+                    {activeResource.subject}
+                  </span>
+                  <span className="text-[9px] font-mono opacity-60">
+                    by {activeResource.authorName}
+                  </span>
+                </div>
+                <h2 className="text-sm sm:text-base font-bold truncate leading-tight">
+                  {activeResource.title}
+                </h2>
+              </div>
+            </div>
+
+            {/* Center / Right: Reader Controls & Actions */}
+            <div className="flex items-center gap-2">
+              {/* Toggle Table of Contents */}
+              {tocList.length > 0 && (
                 <button
-                  onClick={() => setActiveResource(null)}
-                  className="p-1.5 text-[#8B949E] hover:text-white hover:bg-[#21262D] rounded-lg transition-colors cursor-pointer"
-                  title="Close Reader"
+                  onClick={() => setShowTOC(!showTOC)}
+                  className={`p-2 rounded-lg text-xs font-mono flex items-center gap-1 transition-all cursor-pointer ${
+                    showTOC ? 'bg-[#E3B341] text-[#0F1115] font-bold' : 'opacity-70 hover:opacity-100 hover:bg-white/10'
+                  }`}
+                  title="Table of Contents"
                 >
-                  <ArrowLeft size={16} />
+                  <List size={15} />
+                  <span className="hidden sm:inline">Outline</span>
                 </button>
-                <div className="min-w-0">
+              )}
+
+              {/* Reader Theme Selector */}
+              <div className="hidden sm:flex items-center gap-1 p-1 rounded-lg border border-white/10 bg-black/20">
+                <button
+                  onClick={() => setReaderTheme('dark')}
+                  className={`p-1.5 rounded transition-all cursor-pointer ${
+                    readerTheme === 'dark' ? 'bg-[#21262D] text-[#E3B341]' : 'opacity-50 hover:opacity-100'
+                  }`}
+                  title="Dark Studio Theme"
+                >
+                  <Moon size={14} />
+                </button>
+                <button
+                  onClick={() => setReaderTheme('sepia')}
+                  className={`p-1.5 rounded transition-all cursor-pointer ${
+                    readerTheme === 'sepia' ? 'bg-[#E6D7B8] text-[#433422]' : 'opacity-50 hover:opacity-100'
+                  }`}
+                  title="Warm Sepia Reading Theme"
+                >
+                  <Sun size={14} />
+                </button>
+                <button
+                  onClick={() => setReaderTheme('oled')}
+                  className={`p-1.5 rounded transition-all cursor-pointer ${
+                    readerTheme === 'oled' ? 'bg-[#222222] text-white' : 'opacity-50 hover:opacity-100'
+                  }`}
+                  title="OLED Pitch Black"
+                >
+                  <Maximize2 size={14} />
+                </button>
+              </div>
+
+              {/* Text Size Toggle */}
+              <button
+                onClick={() => setReaderFontSize(readerFontSize === 'normal' ? 'large' : 'normal')}
+                className="p-2 rounded-lg opacity-70 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer font-mono text-xs flex items-center gap-1"
+                title="Toggle Text Size"
+              >
+                <Type size={15} />
+                <span className="text-[10px] font-bold">{readerFontSize === 'normal' ? '100%' : '125%'}</span>
+              </button>
+
+              {/* Import to Deck CTA */}
+              <button
+                onClick={() => setShowImportDialog(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
+              >
+                <BookmarkPlus size={14} />
+                <span className="hidden sm:inline">Import to Deck</span>
+              </button>
+
+              {/* Generate AI Cards CTA */}
+              {onOpenAiGeneratorWithText && (
+                <button
+                  onClick={() => {
+                    const txt = activeResource.content;
+                    setActiveResource(null);
+                    onOpenAiGeneratorWithText(txt);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
+                >
+                  <Sparkles size={14} />
+                  <span className="hidden sm:inline">Flashcards</span>
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* Reader Body (Split View: TOC + Main Page) */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Table of Contents Side Panel */}
+            {showTOC && tocList.length > 0 && (
+              <aside
+                className="w-64 border-r overflow-y-auto p-4 hidden md:block flex-shrink-0 transition-all"
+                style={{ background: readerThemeStyles.panelBg, borderColor: readerThemeStyles.border }}
+              >
+                <div className="flex items-center gap-2 pb-3 mb-3 border-b border-white/10">
+                  <List size={14} className="text-[#E3B341]" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider">Document Outline</span>
+                </div>
+
+                <nav className="space-y-1">
+                  {tocList.map((item, idx) => (
+                    <a
+                      key={idx}
+                      href={`#${item.id}`}
+                      className="block text-xs font-mono py-1.5 px-2 rounded hover:bg-white/10 transition-colors line-clamp-1 opacity-80 hover:opacity-100"
+                      style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }}
+                    >
+                      {item.title}
+                    </a>
+                  ))}
+                </nav>
+              </aside>
+            )}
+
+            {/* Center Page Container */}
+            <main
+              ref={readerScrollRef}
+              onScroll={handleReaderScroll}
+              className="flex-1 overflow-y-auto p-4 sm:p-10 flex flex-col items-center"
+            >
+              {/* Document Cover Banner */}
+              <div
+                className="w-full max-w-3xl rounded-2xl p-6 sm:p-8 mb-8 border"
+                style={{
+                  background: getSubjectTheme(activeResource.subject).gradient,
+                  borderColor: readerThemeStyles.border,
+                }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span
+                    className="px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest"
+                    style={{
+                      background: getSubjectTheme(activeResource.subject).bg,
+                      color: getSubjectTheme(activeResource.subject).text,
+                      border: `1px solid ${getSubjectTheme(activeResource.subject).border}`,
+                    }}
+                  >
+                    {activeResource.subject}
+                  </span>
+                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-black/30 border border-white/10">
+                    FORMAT: {activeResource.fileType.toUpperCase()}
+                  </span>
+                </div>
+
+                <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight mb-3 leading-tight">
+                  {activeResource.title}
+                </h1>
+
+                {activeResource.description && (
+                  <p className="text-sm opacity-80 leading-relaxed mb-4">
+                    {activeResource.description}
+                  </p>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between pt-4 border-t border-white/10 text-xs font-mono opacity-75 gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-[#E3B341] font-bold">
-                      {activeResource.subject} Library Document
-                    </span>
-                    <span className="text-[9px] font-mono text-[#8B949E]">
-                      by {activeResource.authorName}
-                    </span>
+                    <span className="font-bold">{activeResource.authorName}</span>
                   </div>
-                  <h2 className="text-sm sm:text-base font-bold text-white truncate leading-tight">
-                    {activeResource.title}
-                  </h2>
+
+                  <div className="flex items-center gap-4">
+                    <span>👁️ {activeResource.views || 0} views</span>
+                    <span>📥 {activeResource.importsCount || 0} imports</span>
+                    <span>⏱️ ~{activeResource.estimatedReadTime || 1} min read</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2">
-                {/* Import to My Deck */}
-                <button
-                  onClick={() => setShowImportDialog(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115] text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
-                >
-                  <BookmarkPlus size={13} />
-                  <span>Import to Deck</span>
-                </button>
-
-                {/* AI Generator Link */}
-                {onOpenAiGeneratorWithText && (
-                  <button
-                    onClick={() => {
-                      const txt = activeResource.content;
-                      setActiveResource(null);
-                      onOpenAiGeneratorWithText(txt);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
-                  >
-                    <Sparkles size={13} />
-                    <span>Generate Flashcards</span>
-                  </button>
-                )}
+              {/* Main Document Content */}
+              <div
+                className={`w-full max-w-3xl rounded-2xl p-6 sm:p-12 shadow-2xl border mb-16 ${
+                  readerFontSize === 'large' ? 'text-lg leading-loose' : 'text-base leading-relaxed'
+                }`}
+                style={{
+                  background: readerThemeStyles.panelBg,
+                  borderColor: readerThemeStyles.border,
+                }}
+              >
+                <div className="prose-study max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {activeResource.content}
+                  </ReactMarkdown>
+                </div>
               </div>
-            </div>
-
-            {/* Reader Content Body */}
-            <div className="flex-1 p-6 sm:p-10 overflow-y-auto bg-[#12161C]">
-              <div className="prose-study max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {activeResource.content}
-                </ReactMarkdown>
-              </div>
-            </div>
-
-            {/* Reader Footer */}
-            <div className="px-6 py-3 border-t border-[#2D333B] bg-[#0D1117] flex items-center justify-between text-[11px] font-mono text-[#8B949E]">
-              <span>Word Count: {activeResource.wordCount || 0} words</span>
-              <span>Reading Time: ~{activeResource.estimatedReadTime || 1} mins</span>
-            </div>
+            </main>
           </div>
         </div>
       )}
@@ -770,7 +970,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                   value={formContent}
                   onChange={e => setFormContent(e.target.value)}
                   placeholder="## Document Title&#10;&#10;Paste your notes or extract text from a file above..."
-                  className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-3 text-xs font-mono text-white focus:outline-none focus:border-[#E3B341]"
+                  className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-3 text-xs font-mono text-[#E0E0E0] focus:outline-none focus:border-[#E3B341]"
                 />
               </div>
 
