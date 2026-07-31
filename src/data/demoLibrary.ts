@@ -2,138 +2,124 @@ import { LibraryResourceMeta } from '../lib/library';
 
 export const DEMO_LIBRARY_RESOURCES: (LibraryResourceMeta & { content: string })[] = [
   {
-    id: 'demo-ccna-net-fundamentals',
-    title: 'CCNA 200-301 — Comprehensive Networking Fundamentals',
-    subject: 'Networking',
-    description: 'Complete breakdown of OSI Layers, TCP/IP Suite, Encapsulation, and Subnetting math for CCNA candidates.',
-    tags: ['CCNA', 'OSI Model', 'TCP/IP', 'Subnetting'],
+    id: 'demo-purposive-comm',
+    title: 'Purposive Communication — 9 Cs & Core Principles',
+    subject: 'Communication',
+    description: 'Essential guide covering Michael Osborn\'s 9 Cs of Communication, Components, Barriers, and Models.',
+    tags: ['Communication', '9 Cs', 'Ethics', 'Barriers'],
     fileType: 'docx',
-    originalFileName: 'CCNA_Module_1_Fundamentals.docx',
-    authorName: 'Cisco Certified Study Group',
+    originalFileName: 'Purposive_Communication_Notes.docx',
+    authorName: 'Prof. A. Santos',
     authorId: 'system-demo-1',
     createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-    views: 342,
-    importsCount: 89,
-    wordCount: 1450,
-    estimatedReadTime: 7,
-    content: `## Section 1: The OSI & TCP/IP Reference Models
+    views: 412,
+    importsCount: 124,
+    wordCount: 850,
+    estimatedReadTime: 4,
+    content: `## Section 1: The 9 Cs of Communication (Michael Osborn)
 
-The **OSI (Open Systems Interconnection)** model defines 7 distinct layers for network communication:
-
-1. **Application (Layer 7)** — HTTP, HTTPS, FTP, SSH, DNS, DHCP
-2. **Presentation (Layer 6)** — Formatting, encryption, data compression (SSL/TLS, JPEG)
-3. **Session (Layer 5)** — Manages sessions between applications (RPC, NetBIOS)
-4. **Transport (Layer 4)** — Segmenting, flow control, error recovery (**TCP**, **UDP**)
-5. **Network (Layer 3)** — Path determination & Logical Addressing (**IPv4**, **IPv6**, ICMP, OSPF)
-6. **Data Link (Layer 2)** — Physical Addressing (**MAC Addresses**), Switches, Frames
-7. **Physical (Layer 1)** — Binary transmission, cables, fiber, wireless signals
-
----
-
-## Section 2: TCP vs. UDP Protocol Comparison
-
-| Feature | TCP (Transmission Control Protocol) | UDP (User Datagram Protocol) |
-|---|---|---|
-| Connection | Connection-oriented (3-way handshake) | Connectionless |
-| Reliability | Guaranteed delivery & retransmission | Best-effort (No retransmission) |
-| Flow Control | Sliding window algorithm | None |
-| Speed | Slower due to overhead | Very fast & lightweight |
-| Use Cases | Web (HTTP), Email (SMTP), File Transfer (FTP) | Video Streaming, VoIP, DNS queries |
+- **Clarity** – Easy to understand and free of ambiguity.
+- **Conciseness** – Expressing ideas briefly and directly without fluff.
+- **Concreteness** – Using specific, definite, and vivid details.
+- **Correctness** – Being accurate and free from grammatical or factual errors.
+- **Courtesy** – Showing politeness, respect, and positive tone.
+- **Creativity** – Using original and imaginative ideas to engage the listener.
+- **Cultural Sensitivity** – Respecting different cultures, traditions, and beliefs.
+- **Captivating** – Interesting and able to hold audience attention.
+- **Consideration** – Being thoughtful of others' feelings, background, and needs.
 
 ---
 
-## Section 3: Subnetting Cheat Sheet & Formulas
+## Section 2: Components & Barriers of Communication
 
-- **Class A**: \`10.0.0.0/8\` (16,777,214 hosts)
-- **Class B**: \`172.16.0.0/12\` (Private range: \`172.16.0.0\` to \`172.31.255.255\`)
-- **Class C**: \`192.168.0.0/16\` (Private range: \`192.168.0.0\` to \`192.168.255.255\`)
+### Core Components
+- **Source**: The sender who initiates the message.
+- **Message**: The core idea or information being transmitted.
+- **Channel**: The medium (speech, text, video) used to convey the message.
+- **Receiver**: The target recipient who decodes the message.
+- **Feedback**: The response sent back by the receiver.
 
-### Magic Number Method for Fast Subnetting
-Subtract the last non-zero octet of the subnet mask from **256**:
-- Mask \`255.255.255.192\` (/26) ➔ \`256 - 192 = 64\` (Block size is 64).
-- Subnets step by 64: \`.0\`, \`.64\`, \`.128\`, \`.192\`.
-- Usable hosts per subnet: \`Block Size - 2\` = \`64 - 2 = 62\` usable hosts.`,
+### Types of Communication Barriers
+- **Psychological**: Mental/emotional states (stress, bias, anxiety).
+- **Physical**: Environmental noise, distance, or physical discomfort.
+- **Linguistic/Cultural**: Language differences, jargon, or cultural misunderstandings.
+- **Mechanical**: Technical faults in phones, computers, or network gear.`,
   },
   {
-    id: 'demo-routing-protocols',
-    title: 'Routing Protocols Masterclass — OSPF, EIGRP & BGP Overview',
-    subject: 'Routing',
-    description: 'Detailed analysis of Interior Gateway Protocols (IGP) vs Exterior Gateway Protocols (EGP) with administrative distances.',
-    tags: ['OSPF', 'EIGRP', 'BGP', 'Routing'],
+    id: 'demo-css-hardware',
+    title: 'Computer System Servicing — Hardware & Port Reference',
+    subject: 'IT & Systems',
+    description: 'Complete breakdown of motherboard components, power connectors, BIOS, and Back I/O port color codes.',
+    tags: ['CSS', 'Hardware', 'Motherboard', 'Ports'],
     fileType: 'pdf',
-    originalFileName: 'Routing_Protocols_DeepDive.pdf',
-    authorName: 'Alex NetEng',
+    originalFileName: 'CSS_Hardware_Guide.pdf',
+    authorName: 'TechCert Academy',
     authorId: 'system-demo-2',
     createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-    views: 218,
-    importsCount: 54,
-    wordCount: 980,
+    views: 318,
+    importsCount: 78,
+    wordCount: 1100,
     estimatedReadTime: 5,
-    content: `## Section 1: Administrative Distance (AD) Hierarchy
+    content: `## Section 1: Motherboard Component Functions
 
-Administrative Distance measures the **trustworthiness** of a routing source. Lower AD is preferred.
-
-- **Connected Interface**: \`0\`
-- **Static Route**: \`1\`
-- **eBGP (External BGP)**: \`20\`
-- **EIGRP (Internal)**: \`90\`
-- **OSPF**: \`110\`
-- **IS-IS**: \`115\`
-- **RIP**: \`120\`
-- **iBGP (Internal BGP)**: \`200\`
+- **CPU Socket** – Holds the processor (CPU) and connects it to motherboard trace lines.
+- **ATX 24-Pin Connector** – Supplies primary power to the motherboard.
+- **ATX 4/8-Pin CPU Power** – Delivers dedicated 12V power directly to the CPU.
+- **ROM BIOS** – Contains startup instructions needed to perform POST and boot.
+- **CMOS Battery** – Retains BIOS settings and system clock time when powered off.
+- **PCIe x16 Slot** – Connects dedicated high-performance graphics cards.
+- **Northbridge (MCH)** – Manages fast communication between CPU, RAM, and GPU.
+- **Southbridge (ICH)** – Handles USB, audio, storage drives, and expansion buses.
 
 ---
 
-## Section 2: OSPF (Open Shortest Path First) Key Concepts
+## Section 2: Back I/O Panel Port Standard
 
-OSPF is a **Link-State Routing Protocol** using Dijkstra's Shortest Path First (SPF) algorithm.
-
-- **Metric**: Cost = \`Reference Bandwidth / Interface Bandwidth\` (Default Ref = 100 Mbps)
-- **Multicast Addresses**: \`224.0.0.5\` (All OSPF Routers), \`224.0.0.6\` (DR/BDR Routers)
-- **Area 0 (Backbone Area)**: All non-backbone areas MUST connect to Area 0 to prevent loops.
-- **Router ID Election Order**:
-  1. Manually configured \`router-id\`
-  2. Highest active Loopback IP address
-  3. Highest active Physical IP address`,
+| Port Name | Connector Color | Purpose |
+|---|---|---|
+| PS/2 Mouse | Green | Legacy pointing devices |
+| PS/2 Keyboard | Purple | Legacy keyboards |
+| Parallel Port | DB-25 Purple | Printers |
+| Line In | Light Blue | Tape/CD/External audio |
+| Line Out | Lime Green | Speakers / Headphones |
+| Microphone | Pink | Audio recording |
+| LAN (RJ-45) | Metal / Black | Ethernet Network Connection |
+| VGA Port | Blue 15-pin | Analog display output |`,
   },
   {
-    id: 'demo-vlan-security',
-    title: 'VLAN Security & Trunking Protocols Guide',
-    subject: 'Security',
-    description: 'Essential switching notes covering 802.1Q trunking, Native VLAN security risks, Port Security, and DHCP Snooping.',
-    tags: ['VLAN', 'Trunking', 'Security', 'Switching'],
+    id: 'demo-cs-fundamentals',
+    title: 'Computer Science — Data Structures & Algorithm Complexity',
+    subject: 'Computer Science',
+    description: 'Comprehensive study notes on Big-O notation, Arrays, Linked Lists, Trees, and Sorting Algorithms.',
+    tags: ['Computer Science', 'Algorithms', 'Big-O', 'Data Structures'],
     fileType: 'txt',
-    originalFileName: 'VLAN_Security_Notes.txt',
-    authorName: 'SecOps CCNA',
+    originalFileName: 'DS_Algo_Notes.txt',
+    authorName: 'CS Department',
     authorId: 'system-demo-3',
     createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-    views: 184,
-    importsCount: 42,
-    wordCount: 750,
-    estimatedReadTime: 4,
-    content: `## Section 1: IEEE 802.1Q Trunking & Native VLAN
+    views: 295,
+    importsCount: 62,
+    wordCount: 920,
+    estimatedReadTime: 5,
+    content: `## Section 1: Big-O Time Complexity Guide
 
-- **802.1Q Tagging**: Inserts a 4-byte header into Ethernet frames, containing a 12-bit **VLAN ID (VID)** (supports 4096 VLANs).
-- **Native VLAN**: Frames belonging to the Native VLAN travel untagged across trunks.
-- **Security Warning**: Always change the default Native VLAN (VLAN 1) to an unused VLAN ID (e.g. VLAN 999) on both ends of a trunk to prevent **VLAN Hopping Attacks**.
+Big-O notation describes the **upper bound execution time** of an algorithm as input size \`N\` grows:
+
+- **O(1)** – Constant Time (e.g., Array index access)
+- **O(log N)** – Logarithmic Time (e.g., Binary Search)
+- **O(N)** – Linear Time (e.g., Unsorted Array Search)
+- **O(N log N)** – Linearithmic Time (e.g., Merge Sort, Quick Sort)
+- **O(N²)** – Quadratic Time (e.g., Bubble Sort, Insertion Sort)
 
 ---
 
-## Section 2: Switchport Port Security Hardening
+## Section 2: Essential Data Structures Comparison
 
-Port security restricts MAC addresses allowed on a switch port:
-
-\`\`\`bash
-Switch(config-if)# switchport mode access
-Switch(config-if)# switchport port-security
-Switch(config-if)# switchport port-security maximum 2
-Switch(config-if)# switchport port-security mac-address sticky
-Switch(config-if)# switchport port-security violation shutdown
-\`\`\`
-
-### Violation Modes:
-- **Protect**: Drops unauthorized frames quietly.
-- **Restrict**: Drops frames, increments security violation counter, logs SNMP trap.
-- **Shutdown (Default)**: Puts port into \`err-disabled\` state immediately.`,
+| Data Structure | Access Time | Search Time | Insertion | Deletion |
+|---|---|---|---|---|
+| **Array** | O(1) | O(N) | O(N) | O(N) |
+| **Linked List** | O(N) | O(N) | O(1) | O(1) |
+| **Hash Table** | O(1) | O(1) | O(1) | O(1) |
+| **Binary Search Tree** | O(log N) | O(log N) | O(log N) | O(log N) |`,
   },
 ];

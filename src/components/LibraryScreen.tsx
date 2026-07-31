@@ -30,15 +30,33 @@ interface LibraryScreenProps {
 }
 
 const SUBJECT_THEMES: Record<string, { bg: string; text: string; border: string; iconColor: string; gradient: string }> = {
-  Networking: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
-  Routing: { bg: 'rgba(56, 139, 253, 0.12)', text: '#58A6FF', border: 'rgba(56, 139, 253, 0.3)', iconColor: '#58A6FF', gradient: 'linear-gradient(135deg, rgba(56,139,253,0.15) 0%, rgba(56,139,253,0.02) 100%)' },
-  Security: { bg: 'rgba(248, 81, 73, 0.12)', text: '#F85149', border: 'rgba(248, 81, 73, 0.3)', iconColor: '#F85149', gradient: 'linear-gradient(135deg, rgba(248,81,73,0.15) 0%, rgba(248,81,73,0.02) 100%)' },
-  Hardware: { bg: 'rgba(163, 113, 247, 0.12)', text: '#BC8CFF', border: 'rgba(163, 113, 247, 0.3)', iconColor: '#BC8CFF', gradient: 'linear-gradient(135deg, rgba(163,113,247,0.15) 0%, rgba(163,113,247,0.02) 100%)' },
-  General: { bg: 'rgba(63, 185, 80, 0.12)', text: '#3FB950', border: 'rgba(63, 185, 80, 0.3)', iconColor: '#3FB950', gradient: 'linear-gradient(135deg, rgba(63,185,80,0.15) 0%, rgba(63,185,80,0.02) 100%)' },
+  Communication: { bg: 'rgba(227, 179, 65, 0.12)', text: '#E3B341', border: 'rgba(227, 179, 65, 0.3)', iconColor: '#E3B341', gradient: 'linear-gradient(135deg, rgba(227,179,65,0.15) 0%, rgba(227,179,65,0.02) 100%)' },
+  'IT & Systems': { bg: 'rgba(56, 139, 253, 0.12)', text: '#58A6FF', border: 'rgba(56, 139, 253, 0.3)', iconColor: '#58A6FF', gradient: 'linear-gradient(135deg, rgba(56,139,253,0.15) 0%, rgba(56,139,253,0.02) 100%)' },
+  'Computer Science': { bg: 'rgba(163, 113, 247, 0.12)', text: '#BC8CFF', border: 'rgba(163, 113, 247, 0.3)', iconColor: '#BC8CFF', gradient: 'linear-gradient(135deg, rgba(163,113,247,0.15) 0%, rgba(163,113,247,0.02) 100%)' },
+  Mathematics: { bg: 'rgba(63, 185, 80, 0.12)', text: '#3FB950', border: 'rgba(63, 185, 80, 0.3)', iconColor: '#3FB950', gradient: 'linear-gradient(135deg, rgba(63,185,80,0.15) 0%, rgba(63,185,80,0.02) 100%)' },
+  Science: { bg: 'rgba(248, 81, 73, 0.12)', text: '#F85149', border: 'rgba(248, 81, 73, 0.3)', iconColor: '#F85149', gradient: 'linear-gradient(135deg, rgba(248,81,73,0.15) 0%, rgba(248,81,73,0.02) 100%)' },
+  Business: { bg: 'rgba(210, 153, 34, 0.12)', text: '#D29922', border: 'rgba(210, 153, 34, 0.3)', iconColor: '#D29922', gradient: 'linear-gradient(135deg, rgba(210,153,34,0.15) 0%, rgba(210,153,34,0.02) 100%)' },
+  General: { bg: 'rgba(46, 160, 67, 0.12)', text: '#2EA043', border: 'rgba(46, 160, 67, 0.3)', iconColor: '#2EA043', gradient: 'linear-gradient(135deg, rgba(46,160,67,0.15) 0%, rgba(46,160,67,0.02) 100%)' },
 };
 
 function getSubjectTheme(subject: string) {
-  return SUBJECT_THEMES[subject] || SUBJECT_THEMES.General;
+  if (SUBJECT_THEMES[subject]) return SUBJECT_THEMES[subject];
+  // Fallback hash theme generator for any custom subject
+  const colors = [
+    { text: '#E3B341', bg: 'rgba(227, 179, 65, 0.12)', border: 'rgba(227, 179, 65, 0.3)' },
+    { text: '#58A6FF', bg: 'rgba(56, 139, 253, 0.12)', border: 'rgba(56, 139, 253, 0.3)' },
+    { text: '#BC8CFF', bg: 'rgba(163, 113, 247, 0.12)', border: 'rgba(163, 113, 247, 0.3)' },
+    { text: '#3FB950', bg: 'rgba(63, 185, 80, 0.12)', border: 'rgba(63, 185, 80, 0.3)' },
+    { text: '#F85149', bg: 'rgba(248, 81, 73, 0.12)', border: 'rgba(248, 81, 73, 0.3)' },
+  ];
+  let hash = 0;
+  for (let i = 0; i < subject.length; i++) hash = subject.charCodeAt(i) + ((hash << 5) - hash);
+  const c = colors[Math.abs(hash) % colors.length];
+  return {
+    ...c,
+    iconColor: c.text,
+    gradient: `linear-gradient(135deg, ${c.bg} 0%, rgba(13,17,23,0.8) 100%)`,
+  };
 }
 
 /** Extract table of contents (headings) from document markdown */
@@ -393,7 +411,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
         {/* Subject Category Filter */}
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-          {['All', 'Networking', 'Routing', 'Security', 'Hardware', 'General'].map(sub => (
+          {['All', 'Communication', 'IT & Systems', 'Computer Science', 'Mathematics', 'Science', 'Business', 'General'].map(sub => (
             <button
               key={sub}
               onClick={() => setSelectedSubject(sub)}
@@ -924,10 +942,12 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                     onChange={e => setFormSubject(e.target.value)}
                     className="w-full bg-[#0D1117] border border-[#30363D] rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-[#E3B341] cursor-pointer"
                   >
-                    <option value="Networking">Networking</option>
-                    <option value="Routing">Routing</option>
-                    <option value="Security">Security</option>
-                    <option value="Hardware">Hardware</option>
+                    <option value="Communication">Communication</option>
+                    <option value="IT & Systems">IT & Systems</option>
+                    <option value="Computer Science">Computer Science</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Science">Science</option>
+                    <option value="Business">Business</option>
                     <option value="General">General</option>
                   </select>
                 </div>
@@ -954,7 +974,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                   type="text"
                   value={formTags}
                   onChange={e => setFormTags(e.target.value)}
-                  placeholder="CCNA, Subnetting, OSI, Switching"
+                  placeholder="Communication, 9 Cs, Ethics, Systems"
                   className="w-full bg-[#0D1117] border border-[#30363D] rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-[#E3B341]"
                 />
               </div>
