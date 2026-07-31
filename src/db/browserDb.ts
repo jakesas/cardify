@@ -59,7 +59,7 @@ export class BrowserDb {
   private dbPromise: Promise<IDBPDatabase>;
 
   constructor(dbName?: string) {
-    this.dbPromise = openDB(dbName || 'ccna-srs', 1, {
+    this.dbPromise = openDB(dbName || 'ccna-srs', 2, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('decks')) {
           db.createObjectStore('decks', { keyPath: 'id', autoIncrement: true });
@@ -76,6 +76,10 @@ export class BrowserDb {
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('ai_sessions')) {
+          const store = db.createObjectStore('ai_sessions', { keyPath: 'id', autoIncrement: true });
+          store.createIndex('created_at', 'created_at');
         }
       },
     });

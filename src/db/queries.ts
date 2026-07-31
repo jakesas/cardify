@@ -308,8 +308,8 @@ export async function saveAiSession(session: {
 }): Promise<AiSession> {
   const db = await getDb();
   const rows = await db.select<any[]>(
-    `INSERT INTO ai_sessions (session_type, input_text, output_text, cards_json, deck_id, deck_name, card_count)
-     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    `INSERT INTO ai_sessions (session_type, input_text, output_text, cards_json, deck_id, deck_name, card_count, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now')) RETURNING *`,
     [
       session.sessionType,
       session.inputText,
