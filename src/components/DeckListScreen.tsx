@@ -238,13 +238,21 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                 <div
                   key={deck.id}
                   id={`deck-card-${deck.id}`}
-                  className={`group relative flex flex-col justify-between rounded border p-3.5 transition-all duration-150 bg-[#161B22] ${
+                  className={`group relative flex flex-col justify-between rounded border overflow-hidden transition-all duration-150 bg-[#161B22] ${
                     due > 0
                       ? 'border-[#E3B341]/40 hover:border-[#E3B341]'
                       : 'border-[#2D333B] hover:border-[#484F58]'
                   }`}
                 >
-                  <div className="space-y-1.5">
+                  {/* Gold top accent strip */}
+                  <div
+                    className={`h-[3px] w-full transition-all duration-300 ${
+                      due > 0
+                        ? 'bg-[#E3B341]'
+                        : 'bg-[#E3B341]/25 group-hover:bg-[#E3B341]/60'
+                    }`}
+                  />
+                  <div className="space-y-1.5 p-3.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5 ${due > 0 ? 'bg-[#E3B341]' : 'bg-[#8B949E]'}`}></span>

@@ -31,6 +31,7 @@ interface ReviewScreenProps {
   onReviewCard: (cardId: string, rating: 1 | 2 | 3 | 4) => void;
   onToggleBookmark: (cardId: string, bookmarked: boolean) => void;
   onGoBack: () => void;
+  onSessionComplete: () => void;
 }
 
 export const ReviewScreen: FC<ReviewScreenProps> = ({
@@ -40,6 +41,7 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
   onReviewCard,
   onToggleBookmark,
   onGoBack,
+  onSessionComplete,
 }) => {
   const todayStr = getLocalDateString();
 
@@ -67,6 +69,7 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
 
   // Transition states for rapid responsive feel
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [xpToast, setXpToast] = useState<{ amount: number; id: number } | null>(null);
 
   const activeCard: Card | undefined = dueCards[currentIndex];
 
@@ -118,6 +121,9 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
     // Flash a quick transition
     setIsTransitioning(true);
 
+    const xpAmount = rating >= 3 ? 10 : 5;
+    setXpToast({ amount: xpAmount, id: Date.now() });
+
     setTimeout(() => {
       onReviewCard(activeCard.id, rating);
       setIsRevealed(false);
@@ -127,6 +133,7 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
 
       if (currentIndex + 1 >= dueCards.length) {
         setCompleted(true);
+        onSessionComplete();
       } else {
         setCurrentIndex((prev) => prev + 1);
       }
@@ -195,6 +202,11 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
               <span>Fully Scheduled</span>
             </span>
           </div>
+        </div>
+
+        <div className="p-3 bg-[#E3B341]/10 border border-[#E3B341]/20 rounded max-w-sm mx-auto flex items-center justify-between font-mono text-xs text-[#E3B341]">
+          <span>Session Bonus</span>
+          <span className="font-bold">+25 XP ⚡</span>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
@@ -312,12 +324,17 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
         </div>
       </div>
 
-      {/* Card Content Stage with Spacing and Clean Shadows */}
-      <div
-        className={`relative rounded border border-[#2D333B] bg-[#161B22] p-5 md:p-6 shadow-xl min-h-[300px] flex flex-col justify-between transition-all duration-120 ${
-          isTransitioning ? 'opacity-30 scale-[0.99]' : 'opacity-100 scale-100'
-        }`}
-      >
+      {/* Floating XP Toast */}
+      {xpToast && (
+        <div key={xpToast.id} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-float-up text-xl font-bold font-mono text-[#E3B341] pointer-events-none drop-shadow-xl z-50 flex items-center gap-1">
+          +{xpToast.amount} XP <span className="text-sm">⚡</span>
+        </div>
+      )}
+
+      {/* Main Review Card Wrapper */}
+      <div className={`w-full max-w-3xl flex-grow flex flex-col bg-[#161B22] border border-[#2D333B] rounded-2xl p-6 sm:p-10 shadow-2xl transition-all duration-300 relative ${
+        isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+      }`}>
         {/* Card Front Content */}
         <div className="space-y-4 flex-grow">
           <div className="flex flex-wrap items-center justify-between gap-1">

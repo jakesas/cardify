@@ -373,6 +373,79 @@ export async function explainConcept(
   return fullContent;
 }
 
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export async function generateQuizFromText(
+  client: Groq,
+  text: string
+): Promise<QuizQuestion[]> {
+  const safeText = truncateToTokenBudget(text, 2000);
+
+  const requestBody = {
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      { 
+        role: 'system' as const, 
+        content: `You are a quiz generation assistant. Based on the provided study material, generate exactly 5 multiple choice questions.
+        
+OUTPUT FORMAT: Output ONLY valid JSON containing an array of exactly 5 questions.
+[
+  {
+    "question": "Question text?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "Option B",
+    "explanation": "Short explanation of why this is correct."
+  }
+]
+
+CRITICAL: Output ONLY the raw JSON array. No markdown wrapping. No introductions.` 
+      },
+      { role: 'user' as const, content: `Generate a quiz from this text:\n\n${safeText}` },
+    ],
+    temperature: 0.3,
+    max_tokens: 1500,
+    response_format: { type: 'json_object' as const }, // We can use JSON object instead of array to be safer with Groq
+  };
+
+  // Adjust prompt for JSON Object since Groq response_format json_object requires an object.
+  requestBody.messages[0].content = `You are a quiz generation assistant. Based on the provided study material, generate exactly 5 multiple choice questions.
+        
+OUTPUT FORMAT: Output ONLY valid JSON containing a single object with a "questions" array of exactly 5 items.
+{
+  "questions": [
+    {
+      "question": "Question text?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": "Option B",
+      "explanation": "Short explanation of why this is correct."
+    }
+  ]
+}
+
+CRITICAL: Output ONLY the raw JSON object. No markdown wrapping. No introductions.`;
+
+  const response = IS_PROXY
+    ? await proxyRequest(requestBody)
+    : await client.chat.completions.create(requestBody);
+
+  const fullContent = response.choices[0]?.message?.content || '';
+  if (!fullContent.trim()) throw new Error('AI output was empty.');
+
+  let cleaned = fullContent.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed.questions || [];
+  } catch {
+    throw new Error('Failed to parse AI quiz generation output.');
+  }
+}
+
 export async function cleanOCRText(
   client: Groq,
   text: string,

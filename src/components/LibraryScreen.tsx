@@ -17,10 +17,12 @@ import { autoFormatStudyContent, splitDocumentIntoPages } from '../utils/textFor
 import {
   BookOpen, Search, Upload, Eye, FileText, Trash2, ArrowLeft,
   Sparkles, Clock, Tag, Check, AlertCircle, Loader2, ChevronRight, ChevronLeft,
-  BookmarkPlus, Globe, List, Type, Sun, Moon, Maximize2, Share2, Layers, Wand2,
+  BookmarkPlus, Globe, List, Type, Sun, Moon, Maximize2, Share2, Layers, Wand2, X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { generateQuizFromText, type QuizQuestion, getAiConfig, createGroqClient } from '../utils/groq';
+import { isFeatureAvailable } from '../utils/premium';
 
 interface LibraryScreenProps {
   decks: Deck[];
@@ -99,6 +101,15 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const [importTargetDeckId, setImportTargetDeckId] = useState<string>(decks[0]?.id || '');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+
+  // AI Quiz Modal State
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
+  const [selectedQuizOption, setSelectedQuizOption] = useState<string | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizError, setQuizError] = useState('');
   const [importSuccessMsg, setImportSuccessMsg] = useState('');
 
   // Upload Modal State
@@ -220,6 +231,58 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const tocList = useMemo(() => {
     return activeResource ? extractTOC(activeResource.content) : [];
   }, [activeResource]);
+
+  const handleGenerateQuiz = async () => {
+    if (!activeResource) return;
+    const premiumAvailable = await isFeatureAvailable();
+    if (!premiumAvailable) {
+      alert("AI Quiz generation is a premium feature. Please upgrade to Pro.");
+      return;
+    }
+    const aiConfig = getAiConfig();
+    if (!aiConfig) {
+      alert("AI features are not configured.");
+      return;
+    }
+    
+    setShowQuizModal(true);
+    setIsGeneratingQuiz(true);
+    setQuizError('');
+    setQuizQuestions([]);
+    setCurrentQuizIndex(0);
+    setSelectedQuizOption(null);
+    setQuizScore(0);
+    
+    try {
+      const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
+      // Use current page if paginated, else whole doc
+      const textToQuiz = readerPages.length > 0 ? readerPages[currentReaderPage] : activeResource.content;
+      const questions = await generateQuizFromText(client, textToQuiz);
+      if (questions.length === 0) throw new Error("No questions generated.");
+      setQuizQuestions(questions);
+    } catch (err) {
+      console.error(err);
+      setQuizError(err instanceof Error ? err.message : 'Failed to generate quiz');
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
+
+  const handleQuizAnswer = (option: string) => {
+    if (selectedQuizOption) return; // already answered this question
+    setSelectedQuizOption(option);
+    const q = quizQuestions[currentQuizIndex];
+    if (option === q.correctAnswer) {
+      setQuizScore(s => s + 1);
+    }
+  };
+
+  const handleNextQuizQuestion = () => {
+    if (currentQuizIndex + 1 < quizQuestions.length) {
+      setCurrentQuizIndex(i => i + 1);
+      setSelectedQuizOption(null);
+    }
+  };
 
   // Extract text from file upload (.docx, .pdf, .txt)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -671,6 +734,15 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 <span className="text-[10px] font-bold">{readerFontSize === 'normal' ? '100%' : '125%'}</span>
               </button>
 
+              {/* Generate Quiz CTA */}
+              <button
+                onClick={handleGenerateQuiz}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
+              >
+                <Wand2 size={14} />
+                <span className="hidden sm:inline">Generate Quiz</span>
+              </button>
+
               {/* Import to Deck CTA */}
               <button
                 onClick={() => setShowImportDialog(true)}
@@ -1057,6 +1129,111 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
           </div>
         </div>
       )}
+      {/* AI Quiz Modal */}
+      {showQuizModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#161B22] border border-[#2D333B] rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b border-[#2D333B] bg-[#0D1117]">
+              <div className="flex items-center gap-2">
+                <Wand2 size={16} className="text-[#E3B341]" />
+                <h3 className="font-bold text-white tracking-tight">AI Quiz</h3>
+              </div>
+              <button onClick={() => setShowQuizModal(false)} className="p-1 rounded hover:bg-white/10 transition-colors text-[#8B949E] hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto">
+              {isGeneratingQuiz ? (
+                <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full border-2 border-[#E3B341]/20 border-t-[#E3B341] animate-spin"></div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-white text-lg tracking-tight">Generating Quiz...</h3>
+                    <p className="text-xs text-[#8B949E] max-w-xs">AI is reading the material and writing specific questions for you.</p>
+                  </div>
+                </div>
+              ) : quizError ? (
+                <div className="py-8 text-center text-[#F85149] font-mono text-sm space-y-2">
+                  <AlertCircle size={32} className="mx-auto mb-4" />
+                  <p>{quizError}</p>
+                </div>
+              ) : quizQuestions.length > 0 ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between font-mono text-xs text-[#8B949E]">
+                    <span>Question {currentQuizIndex + 1} of {quizQuestions.length}</span>
+                    <span>Score: <span className="text-[#3FB950] font-bold">{quizScore}</span></span>
+                  </div>
+
+                  <h4 className="text-lg font-bold text-white leading-relaxed">
+                    {quizQuestions[currentQuizIndex].question}
+                  </h4>
+
+                  <div className="space-y-2">
+                    {quizQuestions[currentQuizIndex].options.map((opt, i) => {
+                      const isSelected = selectedQuizOption === opt;
+                      const isCorrect = opt === quizQuestions[currentQuizIndex].correctAnswer;
+                      
+                      let btnClass = "w-full p-4 rounded-lg border text-left transition-all font-medium text-sm leading-snug cursor-pointer flex gap-3 ";
+                      if (!selectedQuizOption) {
+                        btnClass += "bg-[#0D1117] border-[#30363D] hover:border-[#8B949E] text-[#E0E0E0]";
+                      } else {
+                        if (isCorrect) {
+                          btnClass += "bg-[#3FB950]/10 border-[#3FB950] text-[#3FB950]";
+                        } else if (isSelected) {
+                          btnClass += "bg-[#F85149]/10 border-[#F85149] text-[#F85149]";
+                        } else {
+                          btnClass += "bg-[#0D1117] border-[#2D333B] opacity-50 text-[#8B949E] cursor-default";
+                        }
+                      }
+
+                      const letter = String.fromCharCode(65 + i);
+
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => handleQuizAnswer(opt)}
+                          disabled={!!selectedQuizOption}
+                          className={btnClass}
+                        >
+                          <span className="font-mono opacity-60 w-4">{letter}</span>
+                          <span className="flex-1">{opt}</span>
+                          {selectedQuizOption && isCorrect && <Check size={16} className="text-[#3FB950]" />}
+                          {selectedQuizOption && isSelected && !isCorrect && <X size={16} className="text-[#F85149]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedQuizOption && (
+                    <div className="p-4 rounded-lg bg-[#21262D] border border-[#30363D] animate-slide-up space-y-2">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="text-xs text-[#E0E0E0] leading-relaxed">
+                          <span className="font-bold text-white block mb-1">Explanation:</span>
+                          {quizQuestions[currentQuizIndex].explanation}
+                        </div>
+                        {currentQuizIndex + 1 < quizQuestions.length ? (
+                          <button
+                            onClick={handleNextQuizQuestion}
+                            className="shrink-0 px-4 py-2 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-xs font-bold uppercase tracking-wider rounded cursor-pointer transition-colors"
+                          >
+                            Next <ChevronRight size={14} className="inline -mt-0.5" />
+                          </button>
+                        ) : (
+                          <div className="shrink-0 flex items-center justify-center p-2 rounded bg-[#3FB950]/20 text-[#3FB950] text-xs font-bold font-mono">
+                            Quiz Complete!
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
+

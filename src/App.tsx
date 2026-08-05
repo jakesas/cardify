@@ -29,6 +29,8 @@ import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard,
 import { getDb, setDbUser } from './db/client';
 import { getPremiumState, activatePremium, type PremiumState } from './utils/premium';
 import { listUserGroups } from './lib/groups';
+import { XPBar } from './components/XPBar';
+import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -37,6 +39,7 @@ function AppInner() {
   const [cards, setCards] = useState<Card[]>([]);
   const [history, setHistory] = useState<ReviewHistory[]>([]);
   const [streakDays, setStreakDays] = useState<number>(0);
+  const [userXp, setUserXp] = useState<number>(0);
   const [premiumState, setPremiumState] = useState<PremiumState | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
@@ -71,6 +74,9 @@ function AppInner() {
           await db.execute('DELETE FROM decks');
           await setSetting('db_schema', '2');
         }
+
+        const xpStr = await getSetting('user_xp');
+        if (xpStr) setUserXp(parseInt(xpStr, 10));
 
         await loadAllData();
         const ps = await getPremiumState();
@@ -197,6 +203,14 @@ function AppInner() {
         nextEaseFactor: updatedCard.easeFactor,
       };
       setHistory(prev => [...prev, newLog]);
+
+      // Award XP
+      const gainedXp = rating >= 3 ? XP_PER_CARD_GOOD_EASY : XP_PER_CARD_AGAIN_HARD;
+      setUserXp(prev => {
+        const nextXp = prev + gainedXp;
+        setSetting('user_xp', nextXp.toString());
+        return nextXp;
+      });
     } catch (err) {
       console.error('Failed to submit review:', err);
       setError(err instanceof Error ? err.message : 'Failed to save review');
@@ -520,6 +534,8 @@ function AppInner() {
 
             {/* Zone Right: desktop actions */}
             <div className="hidden md:flex items-center justify-end gap-4">
+              <XPBar xp={userXp} streakDays={streakDays} />
+              
               {premiumState?.status === 'trial' && (
                 <button
                   onClick={() => setShowUpgrade(true)}
@@ -693,6 +709,15 @@ function AppInner() {
                 setCards(prev => prev.map(c => c.id === cardId ? { ...c, bookmarked } : c));
               }}
               onGoBack={() => setActiveTab('study')}
+              onSessionComplete={() => {
+                // Add Session Bonus XP
+                const bonus = 25; // XP_SESSION_BONUS
+                setUserXp(prev => {
+                  const nextXp = prev + bonus;
+                  setSetting('user_xp', nextXp.toString());
+                  return nextXp;
+                });
+              }}
             />
           )}
 

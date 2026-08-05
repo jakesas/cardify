@@ -76,6 +76,43 @@ export const StatsScreen: FC<StatsScreenProps> = ({
 
   const todayReviews = history.filter(h => h.timestamp.startsWith(todayStr)).length;
 
+  // ─── Heatmap Calendar Data (Last 90 days) ─────────────────────────────────
+  const heatmapDays = 90;
+  const activityMap = new Map<string, number>();
+  history.forEach(h => {
+    const d = h.timestamp.split('T')[0];
+    activityMap.set(d, (activityMap.get(d) || 0) + 1);
+  });
+  const heatmapData = Array.from({ length: heatmapDays }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (heatmapDays - 1) + i);
+    const dStr = d.toISOString().split('T')[0];
+    return { date: dStr, count: activityMap.get(dStr) || 0 };
+  });
+
+  // ─── Line Chart Data (Mastered Cards over time) ───────────────────────────
+  // We approximate mastery over time by looking at reviews where interval >= 21
+  const lineChartDays = 30;
+  let runningMastered = cards.filter(c => c.interval >= 21).length; // current
+  const masteryHistory = [];
+  // Go backward
+  for (let i = 0; i < lineChartDays; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dStr = d.toISOString().split('T')[0];
+    
+    // Naive approximation: subtract cards that reached mastery on this day to go backward
+    const masteredOnDay = history.filter(h => h.timestamp.startsWith(dStr) && h.nextInterval >= 21 && h.previousInterval < 21).length;
+    
+    masteryHistory.unshift({
+      date: dStr,
+      label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      count: runningMastered
+    });
+    runningMastered = Math.max(0, runningMastered - masteredOnDay);
+  }
+  const maxMastered = Math.max(...masteryHistory.map(m => m.count), 5);
+
   const domainMastery = Object.entries(domainAccuracy).map(([domain, data]) => {
     const domainCards = cards.filter(c => c.tag === domain);
     const avgEF = domainCards.length > 0
@@ -258,6 +295,27 @@ export const StatsScreen: FC<StatsScreenProps> = ({
         );
       })()}
 
+      {/* Heatmap Calendar */}
+      <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3 overflow-x-auto">
+        <h3 className="text-[10px] font-bold font-mono tracking-wider uppercase text-[#8B949E] border-b border-[#30363D] pb-1.5">
+          🔥 Activity Heatmap (Last 90 Days)
+        </h3>
+        <div className="flex gap-1">
+          {heatmapData.map((d, i) => {
+            const intensity = d.count === 0 ? 'bg-[#0D1117] border border-[#2D333B]' :
+                              d.count < 10 ? 'bg-[#E3B341]/40' :
+                              d.count < 30 ? 'bg-[#E3B341]/70' : 'bg-[#E3B341]';
+            return (
+              <div 
+                key={i} 
+                className={`w-3 h-3 sm:w-4 sm:h-4 rounded-sm ${intensity} flex-shrink-0 transition-colors`}
+                title={`${d.date}: ${d.count} reviews`}
+              />
+            );
+          })}
+        </div>
+      </div>
+
       {/* Visual Analytics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
         {/* Left Card: Due Forecast (Bar Chart) */}
@@ -316,41 +374,117 @@ export const StatsScreen: FC<StatsScreenProps> = ({
           </div>
         </div>
 
-        {/* Right Card: Exam Domain Distribution */}
-        <div className="md:col-span-5 p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
+        {/* Right Card: Exam Domain Distribution (Donut Chart) */}
+        <div className="md:col-span-5 p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3 flex flex-col">
           <h3 className="text-[10px] font-bold font-mono tracking-wider uppercase text-[#8B949E] border-b border-[#30363D] pb-1.5">
-            📊 Domain Distribution
+            📊 Domain Breakdown
           </h3>
 
-          <div className="space-y-3 pt-1">
+          <div className="flex-grow flex flex-col items-center justify-center pt-2">
             {Object.keys(domainBreakdown).length === 0 ? (
               <div className="text-center py-10 text-[#8B949E] font-mono text-xs uppercase">
                 No cards created yet.
               </div>
             ) : (
-              Object.entries(domainBreakdown).map(([domain, count]) => {
+              <div className="relative w-32 h-32 mb-4">
+                <svg viewBox="0 0 36 36" className="w-full h-full drop-shadow-lg">
+                  {(() => {
+                    let cumulativePercent = 0;
+                    const colors = ['#E3B341', '#388BFD', '#3FB950', '#F85149', '#8957E5', '#D2A8FF'];
+                    return Object.entries(domainBreakdown).map(([domain, count], i) => {
+                      const percentage = ((count as number) / totalCards) * 100;
+                      const offset = 100 - cumulativePercent;
+                      cumulativePercent += percentage;
+                      return (
+                        <circle
+                          key={domain}
+                          r="15.91549430918954"
+                          cx="18"
+                          cy="18"
+                          fill="transparent"
+                          stroke={colors[i % colors.length]}
+                          strokeWidth="3"
+                          strokeDasharray={`${percentage} ${100 - percentage}`}
+                          strokeDashoffset={offset}
+                          className="transition-all duration-500 ease-in-out"
+                        />
+                      );
+                    });
+                  })()}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
+                  <span className="text-xl font-bold text-white">{totalCards}</span>
+                  <span className="text-[8px] text-[#8B949E] uppercase">Total</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="w-full space-y-2 max-h-32 overflow-y-auto pr-1">
+              {Object.entries(domainBreakdown).map(([domain, count], i) => {
+                const colors = ['#E3B341', '#388BFD', '#3FB950', '#F85149', '#8957E5', '#D2A8FF'];
+                const color = colors[i % colors.length];
                 const percentage = Math.round(((count as number) / totalCards) * 100);
-
                 return (
-                  <div key={domain} className="space-y-1">
-                    <div className="flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-[#E0E0E0] truncate pr-2 font-bold" title={domain}>
-                        {domain.toUpperCase()}
-                      </span>
-                      <span className="text-[#8B949E] font-bold">{count} ({percentage}%)</span>
+                  <div key={domain} className="flex items-center justify-between text-[10px] font-mono">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                      <span className="text-[#E0E0E0] truncate" title={domain}>{domain}</span>
                     </div>
-                    {/* Progress Bar background */}
-                    <div className="w-full h-2 rounded bg-[#0D1117] overflow-hidden border border-[#30363D]">
-                      <div
-                        className="h-full bg-[#E3B341] rounded"
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
+                    <span className="text-[#8B949E] font-bold">{count} ({percentage}%)</span>
                   </div>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
+        </div>
+      </div>
+      
+      {/* Line Chart: Mastered Cards Over Time */}
+      <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
+        <h3 className="text-[10px] font-bold font-mono tracking-wider uppercase text-[#8B949E] border-b border-[#30363D] pb-1.5">
+          📈 Cards Mastered Over Time (30 Days)
+        </h3>
+        <div className="h-32 sm:h-48 w-full relative pt-4">
+          <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="masteredGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3FB950" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#3FB950" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* Grid lines */}
+            <line x1="0" y1="25" x2="100" y2="25" stroke="#30363D" strokeWidth="0.5" strokeDasharray="2 2" />
+            <line x1="0" y1="50" x2="100" y2="50" stroke="#30363D" strokeWidth="0.5" strokeDasharray="2 2" />
+            <line x1="0" y1="75" x2="100" y2="75" stroke="#30363D" strokeWidth="0.5" strokeDasharray="2 2" />
+            
+            {/* Line and Area */}
+            {(() => {
+              if (masteryHistory.length === 0) return null;
+              const points = masteryHistory.map((d, i) => {
+                const x = (i / (lineChartDays - 1)) * 100;
+                const y = 100 - ((d.count / maxMastered) * 100);
+                return `${x},${y}`;
+              }).join(' ');
+              
+              const areaPath = `M0,100 L${points} L100,100 Z`;
+              
+              return (
+                <>
+                  <path d={areaPath} fill="url(#masteredGradient)" />
+                  <polyline fill="none" stroke="#3FB950" strokeWidth="2" points={points} className="drop-shadow-[0_0_4px_rgba(63,185,80,0.5)]" />
+                  
+                  {/* Data points */}
+                  {masteryHistory.map((d, i) => {
+                    const x = (i / (lineChartDays - 1)) * 100;
+                    const y = 100 - ((d.count / maxMastered) * 100);
+                    return i % 5 === 0 || i === lineChartDays - 1 ? (
+                      <circle key={i} cx={x} cy={y} r="1.5" fill="#161B22" stroke="#3FB950" strokeWidth="1" />
+                    ) : null;
+                  })}
+                </>
+              );
+            })()}
+          </svg>
         </div>
       </div>
 
