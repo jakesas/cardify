@@ -614,6 +614,7 @@ function AppInner() {
                       { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => { setActiveTab('quiz'); setShowMobileMenu(false); } },
                       { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => { setActiveTab('weak'); setShowMobileMenu(false); } },
                     ] : []),
+                    { key: 'library', icon: BookOpen, label: 'Library', onClick: () => { setActiveTab('library'); setShowMobileMenu(false); } },
                     { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => { setActiveTab('stats'); setShowMobileMenu(false); } },
                     { key: 'search', icon: Search, label: 'Search', onClick: () => { setActiveTab('search'); setShowMobileMenu(false); } },
                   ].map((item) => {
