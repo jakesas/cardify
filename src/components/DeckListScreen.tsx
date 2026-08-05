@@ -133,7 +133,14 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <>
+      {/* Deck card animation styles */}
+      <style>{`
+        @keyframes deck-card-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .deck-card-enter { animation: deck-card-in 0.5s cubic-bezier(.22,.68,0,1.2) backwards; }
+        @media (prefers-reduced-motion: reduce) { .deck-card-enter { animation: none; } }
+      `}</style>
+      <div className="space-y-6 animate-fade-in">
       {/* Welcome Banner / Overview */}
       <div className="relative overflow-hidden rounded border border-[#2D333B] bg-[#161B22] p-5 md:p-6">
         <div className="max-w-3xl space-y-3">
@@ -230,7 +237,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {decks.map((deck) => {
+            {decks.map((deck, index) => {
               const { total, due } = getDeckStats(deck.id);
               const showOverflow = overflowMenuDeckId === deck.id;
 
@@ -238,24 +245,35 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                 <div
                   key={deck.id}
                   id={`deck-card-${deck.id}`}
-                  className={`group relative flex flex-col justify-between rounded border overflow-hidden transition-all duration-150 bg-[#161B22] ${
+                  className={`deck-card-enter group relative flex flex-col justify-between rounded overflow-hidden transition-all duration-300 ${
                     due > 0
-                      ? 'border-[#E3B341]/40 hover:border-[#E3B341]'
-                      : 'border-[#2D333B] hover:border-[#484F58]'
-                  }`}
+                      ? 'border border-[#E3B341]/40 hover:border-[#E3B341]/70 hover:shadow-[0_0_28px_rgba(227,179,65,0.15)]'
+                      : 'border border-[#2D333B] hover:border-[#58A6FF]/50 hover:shadow-[0_8px_32px_rgba(0,0,0,0.45)]'
+                  } hover:-translate-y-0.5 bg-[#161B22] bg-gradient-to-b from-[#1A2029] to-[#14181F]`}
+                  style={{ animationDelay: `${index * 55}ms` }}
                 >
-                  {/* Gold top accent strip */}
+                  {/* Ambient corner glow */}
+                  <div className={`pointer-events-none absolute -top-12 -right-12 w-36 h-36 rounded-full blur-3xl transition-opacity duration-500 opacity-0 group-hover:opacity-100 ${
+                    due > 0 ? 'bg-[#E3B341]/15' : 'bg-[#58A6FF]/10'
+                  }`} />
+
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden rounded">
+                    <div className="absolute -inset-y-full -left-1/2 w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/[0.05] to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[350%]" />
+                  </div>
                   <div
-                    className={`h-[3px] w-full transition-all duration-300 ${
+                    className={`relative h-[3px] w-full transition-all duration-300 ${
                       due > 0
-                        ? 'bg-[#E3B341]'
-                        : 'bg-[#E3B341]/25 group-hover:bg-[#E3B341]/60'
+                        ? 'bg-gradient-to-r from-[#E3B341] via-[#F0C24F] to-[#E3B341] shadow-[0_0_12px_rgba(227,179,65,0.5)]'
+                        : 'bg-gradient-to-r from-[#E3B341]/20 via-[#E3B341]/40 to-transparent group-hover:from-[#E3B341]/50 group-hover:via-[#E3B341]/80'
                     }`}
                   />
-                  <div className="space-y-1.5 p-3.5">
+                  <div className="space-y-1.5 p-3.5 pb-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5 ${due > 0 ? 'bg-[#E3B341]' : 'bg-[#8B949E]'}`}></span>
+                        <span className="relative flex w-1.5 h-1.5 flex-shrink-0 mt-0.5">
+                          {due > 0 && <span className="absolute inline-flex h-full w-full rounded-full bg-[#E3B341] opacity-60 animate-ping"></span>}
+                          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${due > 0 ? 'bg-[#E3B341]' : 'bg-[#8B949E]'}`}></span>
+                        </span>
                         <span className="text-[7px] font-mono text-[#484F58] font-bold tracking-wider flex-shrink-0">
                           #{deck.id}
                         </span>
@@ -265,11 +283,11 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-[9px] font-mono text-[#8B949E] whitespace-nowrap">
+                        <span className="text-[9px] font-mono text-[#484F58] whitespace-nowrap">
                           <span className="text-white font-bold">{total}</span>
                         </span>
                         {due > 0 ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/20">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/25 shadow-[0_0_8px_rgba(227,179,65,0.08)]">
                             {due} due
                           </span>
                         ) : total > 0 ? (
@@ -285,9 +303,30 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                         {deck.description}
                       </p>
                     )}
+
+                    {total > 0 && (
+                      <div className="pt-1.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[8px] font-mono text-[#484F58] font-bold tracking-wider uppercase">Mastery</span>
+                          <span className={`text-[9px] font-mono font-bold ${due > 0 ? 'text-[#E3B341]' : 'text-[#3FB950]'}`}>
+                            {Math.round(((total - due) / total) * 100)}%
+                          </span>
+                        </div>
+                        <div className="h-1 rounded-full bg-[#0D1117] overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              due > 0
+                                ? 'bg-gradient-to-r from-[#E3B341]/60 to-[#E3B341] shadow-[0_0_8px_rgba(227,179,65,0.5)]'
+                                : 'bg-gradient-to-r from-[#3FB950]/60 to-[#3FB950]'
+                            }`}
+                            style={{ width: `${((total - due) / total) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-[#2D333B] flex items-center justify-between gap-2">
+                  <div className="mt-1 pt-2.5 border-t border-[#2D333B]/80 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => onSelectDeck(deck.id, 'editor')}
@@ -375,10 +414,10 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                       onClick={() => onSelectDeck(deck.id, due > 0 ? 'study' : 'editor')}
                       className={`inline-flex items-center gap-1.5 px-3 h-[36px] rounded text-[10px] font-bold tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                         due > 0
-                          ? 'bg-[#E3B341] text-[#0F1115] hover:bg-[#F0C24F] shadow-sm'
+                          ? 'bg-gradient-to-b from-[#F0C24F] to-[#E3B341] text-[#0F1115] hover:from-[#F7D270] hover:to-[#F0C24F] shadow-[0_2px_12px_rgba(227,179,65,0.35)] hover:shadow-[0_4px_20px_rgba(227,179,65,0.5)] hover:-translate-y-px'
                           : total === 0
                             ? 'bg-transparent text-[#8B949E] hover:text-white border border-dashed border-[#30363D] hover:border-[#484F58]'
-                            : 'bg-[#21262D] text-white hover:bg-[#30363D] border border-[#30363D]'
+                            : 'bg-[#21262D] text-white hover:bg-[#30363D] border border-[#30363D] hover:border-[#484F58]'
                       }`}
                     >
                       {total === 0 ? (
@@ -496,6 +535,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
