@@ -560,7 +560,9 @@ function AppInner() {
             { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
             { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
             { key: 'ai', icon: Wand2, label: 'AI', centered: true, onClick: () => setActiveTab('ai') },
-            { key: 'groups', icon: Users, label: 'Groups', onClick: () => setActiveTab('groups') },
+            ...(activeDeck ? [
+              { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
+            ] : []),
           ].map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
@@ -611,9 +613,9 @@ function AppInner() {
                 <div className="absolute bottom-full right-0 mb-2 z-50 w-48 rounded border border-[#2D333B] bg-[#161B22] shadow-2xl overflow-hidden">
                   {[
                     ...(activeDeck ? [
-                      { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => { setActiveTab('quiz'); setShowMobileMenu(false); } },
                       { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => { setActiveTab('weak'); setShowMobileMenu(false); } },
                     ] : []),
+                    { key: 'groups', icon: Users, label: 'Groups', onClick: () => { setActiveTab('groups'); setShowMobileMenu(false); } },
                     { key: 'library', icon: BookOpen, label: 'Library', onClick: () => { setActiveTab('library'); setShowMobileMenu(false); } },
                     { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => { setActiveTab('stats'); setShowMobileMenu(false); } },
                     { key: 'search', icon: Search, label: 'Search', onClick: () => { setActiveTab('search'); setShowMobileMenu(false); } },
