@@ -122,7 +122,11 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
     setIsTransitioning(true);
 
     const xpAmount = rating >= 3 ? 10 : 5;
-    setXpToast({ amount: xpAmount, id: Date.now() });
+    const toastId = Date.now();
+    setXpToast({ amount: xpAmount, id: toastId });
+    setTimeout(() => {
+      setXpToast(prev => (prev && prev.id === toastId ? null : prev));
+    }, 1500);
 
     setTimeout(() => {
       onReviewCard(activeCard.id, rating);

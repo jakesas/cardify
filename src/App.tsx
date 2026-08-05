@@ -29,7 +29,6 @@ import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard,
 import { getDb, setDbUser } from './db/client';
 import { getPremiumState, activatePremium, type PremiumState } from './utils/premium';
 import { listUserGroups } from './lib/groups';
-import { XPBar } from './components/XPBar';
 import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
 
 function AppInner() {
@@ -534,7 +533,6 @@ function AppInner() {
 
             {/* Zone Right: desktop actions */}
             <div className="hidden md:flex items-center justify-end gap-4">
-              <XPBar xp={userXp} streakDays={streakDays} />
               
               {premiumState?.status === 'trial' && (
                 <button
@@ -674,6 +672,7 @@ function AppInner() {
               decks={decks}
               cards={cards}
               streakDays={streakDays}
+              xp={userXp}
               onSelectDeck={handleSelectDeck}
               onCreateDeck={handleCreateDeck}
               onDeleteDeck={handleDeleteDeck}

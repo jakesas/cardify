@@ -2,11 +2,13 @@ import { useState, useEffect, type FC } from 'react';
 import { Deck, Card } from '../types';
 import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
+import { XPBar } from './XPBar';
 
 interface DeckListScreenProps {
   decks: Deck[];
   cards: Card[];
   streakDays: number;
+  xp: number;
   onSelectDeck: (deckId: string, tab: 'study' | 'review' | 'editor' | 'quiz') => void;
   onCreateDeck: (name: string, description: string) => void;
   onDeleteDeck: (deckId: string) => void;
@@ -20,6 +22,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   decks,
   cards,
   streakDays,
+  xp,
   onSelectDeck,
   onCreateDeck,
   onDeleteDeck,
@@ -160,9 +163,12 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
               </button>
             )}
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white font-mono">
-            Flashcard study instrument
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <XPBar xp={xp} streakDays={0} />
+            <h1 className="text-xl font-bold tracking-tight text-white font-mono">
+              Flashcard study instrument
+            </h1>
+          </div>
           
           <div className="flex flex-wrap gap-2 pt-1">
             {recommendedDeck ? (
