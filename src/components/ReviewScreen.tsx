@@ -336,11 +336,14 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
       )}
 
       {/* Main Review Card Wrapper */}
-      <div className={`w-full max-w-3xl flex-grow flex flex-col bg-[#161B22] border border-[#2D333B] rounded-2xl p-6 sm:p-10 shadow-2xl transition-all duration-300 relative ${
+      <div className={`w-full max-w-3xl flex-grow flex flex-col bg-[#161B22] border border-[#2D333B] rounded-2xl p-6 sm:p-10 shadow-2xl transition-all duration-300 relative [perspective:1200px] ${
         isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
       }`}>
+        <div className={`grid [transform-style:preserve-3d] [transition:transform_0.55s_cubic-bezier(0.22,0.61,0.36,1)] ${isRevealed ? '[transform:rotateY(180deg)]' : ''}`}>
+        {/* Front Face */}
+        <div className="[grid-area:1/1] [backface-visibility:hidden]">
         {/* Card Front Content */}
-        <div className="space-y-4 flex-grow">
+        <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-1">
             <div className="flex items-center gap-1">
               <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-widest uppercase bg-[#0D1117] border border-[#30363D] text-[#8B949E]">
@@ -417,9 +420,23 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
           </div>
         </div>
 
+        {/* Flip-to-reveal CTA on the front face */}
+        {!isRevealed && (
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={() => setIsRevealed(true)}
+              className="px-6 py-2 bg-[#21262D] hover:bg-[#30363D] text-[#388BFD] hover:text-white text-xs font-bold tracking-widest uppercase rounded border border-[#30363D] transition-all cursor-pointer shadow-lg active:scale-95 font-mono"
+            >
+              Tap to Reveal <span className="ml-1 text-[#8B949E] text-[10px] font-normal">[SPACE]</span>
+            </button>
+          </div>
+        )}
+        </div>
+
+        {/* Back Face */}
+        <div className="[grid-area:1/1] [transform:rotateY(180deg)] [backface-visibility:hidden]">
         {/* Revealed Answer Box */}
-        {isRevealed ? (
-          <div className="mt-6 pt-5 border-t border-[#2D333B] space-y-3 animate-fade-in flex-grow">
+          <div className="space-y-3">
             {activeCard.cardType === 'cloze' ? (
               activeCard.back.trim() ? (
                 <>
@@ -506,17 +523,8 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
             </div>
 
           </div>
-        ) : (
-          /* Reveal CTA Section */
-          <div className="mt-8 flex justify-center">
-            <button
-              onClick={() => setIsRevealed(true)}
-              className="px-6 py-2 bg-[#21262D] hover:bg-[#30363D] text-[#388BFD] hover:text-white text-xs font-bold tracking-widest uppercase rounded border border-[#30363D] transition-all cursor-pointer shadow-lg active:scale-95 font-mono"
-            >
-              Reveal Answer <span className="ml-1 text-[#8B949E] text-[10px] font-normal">[SPACE]</span>
-            </button>
           </div>
-        )}
+      </div>
       </div>
 
       {/* Keyboard Hint Overlay Tip */}
