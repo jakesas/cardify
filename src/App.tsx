@@ -21,13 +21,11 @@ import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import { LibraryScreen } from './components/LibraryScreen';
 import logoSrc from '/logo.png';
-import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, CreditCard, AlertTriangle, Search, Globe, Users, BookOpen } from 'lucide-react';
+import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, AlertTriangle, Search, Globe, Users, BookOpen } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
-import { PaymentScreen } from './components/PaymentScreen';
 import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
 import { getDb, setDbUser } from './db/client';
-import { getPremiumState, activatePremium, type PremiumState } from './utils/premium';
 import { listUserGroups } from './lib/groups';
 import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
 
@@ -39,8 +37,6 @@ function AppInner() {
   const [history, setHistory] = useState<ReviewHistory[]>([]);
   const [streakDays, setStreakDays] = useState<number>(0);
   const [userXp, setUserXp] = useState<number>(0);
-  const [premiumState, setPremiumState] = useState<PremiumState | null>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'library' | 'groups' | 'group-detail'>('decks');
@@ -78,8 +74,6 @@ function AppInner() {
         if (xpStr) setUserXp(parseInt(xpStr, 10));
 
         await loadAllData();
-        const ps = await getPremiumState();
-        setPremiumState(ps);
       } catch (err) {
         console.error('Failed to initialize database:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize database');
@@ -400,36 +394,6 @@ function AppInner() {
     return <AuthScreen />;
   }
 
-  if (premiumState?.status === 'expired') {
-    return (
-      <PaymentScreen
-        onPaid={async (plan) => {
-          await activatePremium(plan);
-          setPremiumState({ status: 'active', trialDaysRemaining: 0, plan, premiumUntil: plan === 'lifetime' ? 'lifetime' : null });
-        }}
-        onSkip={() => {
-          setPremiumState(prev => prev ? { ...prev, status: 'expired' as const } : prev!);
-        }}
-      />
-    );
-  }
-
-  if (showUpgrade) {
-    return (
-      <PaymentScreen
-        isUpgrade
-        onPaid={async (plan) => {
-          await activatePremium(plan);
-          setPremiumState({ status: 'active', trialDaysRemaining: 0, plan, premiumUntil: plan === 'lifetime' ? 'lifetime' : null });
-          setShowUpgrade(false);
-        }}
-        onSkip={() => {
-          setShowUpgrade(false);
-        }}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen font-sans transition-colors duration-200 bg-[#0F1115] text-[#E0E0E0] selection:bg-[#E3B341]/30 selection:text-white">
       <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02] pointer-events-none z-0"></div>
@@ -456,12 +420,6 @@ function AppInner() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs sm:text-sm font-bold text-white tracking-tight">CardifyA.I</span>
-                    {premiumState?.status === 'active' && (
-                      <span className="px-1 py-0.5 rounded bg-[#3FB950]/15 text-[#3FB950] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
-                    )}
-                    {premiumState?.status === 'trial' && (
-                      <span className="px-1 py-0.5 rounded bg-[#E3B341]/15 text-[#E3B341] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Trial</span>
-                    )}
                   </div>
                 </div>
 
@@ -533,17 +491,6 @@ function AppInner() {
 
             {/* Zone Right: desktop actions */}
             <div className="hidden md:flex items-center justify-end gap-4">
-              
-              {premiumState?.status === 'trial' && (
-                <button
-                  onClick={() => setShowUpgrade(true)}
-                  className="px-2.5 py-1 rounded text-[#E3B341] hover:bg-[#E3B341]/10 text-[10px] font-bold font-mono uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Upgrade to Premium"
-                >
-                  <CreditCard size={12} />
-                  <span className="hidden md:inline">Upgrade</span>
-                </button>
-              )}
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
@@ -657,14 +604,6 @@ function AppInner() {
             )}
           </div>
         </nav>
-
-        {/* Trial countdown banner */}
-        {premiumState?.status === 'trial' && premiumState.trialDaysRemaining <= 1 && (
-          <div className="mb-3 px-3 py-1.5 rounded border border-[#E3B341]/30 bg-[#E3B341]/10 text-[10px] font-mono text-[#E3B341] text-center">
-            Your free trial ends in <span className="font-bold">{premiumState.trialDaysRemaining} day{premiumState.trialDaysRemaining !== 1 ? 's' : ''}</span> —{' '}
-            <span className="font-bold">₱199 lifetime</span> to keep AI features after trial.
-          </div>
-        )}
 
         <main className="flex-grow pt-2">
            {activeTab === 'decks' && (
@@ -820,8 +759,6 @@ function AppInner() {
                 await updateDeckStudyMaterial(id, material);
                 setDecks(decks.map(d => d.id === id ? { ...d, studyMaterial: material } : d));
               }}
-              premiumState={premiumState ?? { status: 'expired', trialDaysRemaining: 0, plan: null, premiumUntil: null }}
-              onShowUpgrade={() => setShowUpgrade(true)}
             />
           )}
         </main>

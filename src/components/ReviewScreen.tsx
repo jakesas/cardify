@@ -5,8 +5,6 @@ import { NetworkTopologyRenderer } from './NetworkTopologyRenderer';
 import { RotateCcw, Keyboard, Lightbulb, Brain, Loader2, Volume2, Star } from 'lucide-react';
 import { explainConcept, createGroqClient, getAiConfig } from '../utils/groq';
 import { getSetting } from '../db/queries';
-import { isFeatureAvailable } from '../utils/premium';
-
 /** Parse {{c1::answer}} cloze markers, returning parts: text before, hidden answer, text after */
 function parseCloze(text: string): { before: string; cloze: string; after: string }[] {
   const parts: { before: string; cloze: string; after: string }[] = [];
@@ -256,9 +254,6 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
   const handleExplain = async () => {
     if (!activeCard) return;
 
-    const premiumAvailable = await isFeatureAvailable();
-    if (!premiumAvailable) { setAiError('AI explanation is a premium feature — upgrade to use it'); setIsExplaining(false); return; }
-
     setIsExplaining(true);
     setExplanation('');
     setAiError('');
@@ -500,7 +495,6 @@ export const ReviewScreen: FC<ReviewScreenProps> = ({
                 >
                   <Brain size={14} className="text-[#388BFD]" />
                   <span>Ask AI Tutor to Explain This</span>
-                  <span className="px-1 py-0.5 rounded bg-[#3FB950]/20 text-[#3FB950] text-[7px] font-bold font-mono uppercase tracking-wider leading-none">Premium</span>
                 </button>
               )}
               {(isExplaining || explanation || aiError) && (

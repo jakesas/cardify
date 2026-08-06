@@ -22,7 +22,6 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { generateQuizFromText, type QuizQuestion, getAiConfig, createGroqClient } from '../utils/groq';
-import { isFeatureAvailable } from '../utils/premium';
 
 interface LibraryScreenProps {
   decks: Deck[];
@@ -234,11 +233,6 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
   const handleGenerateQuiz = async () => {
     if (!activeResource) return;
-    const premiumAvailable = await isFeatureAvailable();
-    if (!premiumAvailable) {
-      alert("AI Quiz generation is a premium feature. Please upgrade to Pro.");
-      return;
-    }
     const aiConfig = getAiConfig();
     if (!aiConfig) {
       alert("AI features are not configured.");

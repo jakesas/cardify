@@ -56,43 +56,9 @@ const SETTING_UNTIL = 'premium_until';
 
 const TRIAL_DAYS = 2;
 
-/** Load premium state from the local DB. Auto-starts trial for new users. */
+// Free for all users — no trial/paywall; always active lifetime.
 export async function getPremiumState(): Promise<PremiumState> {
-  const [trialStarted, status, plan, until] = await Promise.all([
-    getSetting(SETTING_TRIAL),
-    getSetting(SETTING_STATUS),
-    getSetting(SETTING_PLAN),
-    getSetting(SETTING_UNTIL),
-  ]);
-
-  const now = Date.now();
-
-  if (status === 'active') {
-    if (until === 'lifetime') {
-      return { status: 'active', trialDaysRemaining: 0, plan: (plan as PremiumPlan) ?? 'lifetime', premiumUntil: 'lifetime' };
-    }
-    if (until) {
-      const expiryMs = new Date(until).getTime();
-      if (now >= expiryMs) {
-        return { status: 'expired', trialDaysRemaining: 0, plan: null, premiumUntil: null };
-      }
-    }
-    return { status: 'active', trialDaysRemaining: 0, plan: (plan as PremiumPlan) ?? 'lifetime', premiumUntil: until };
-  }
-
-  if (trialStarted) {
-    const startMs = new Date(trialStarted).getTime();
-    const elapsedDays = (now - startMs) / (1000 * 60 * 60 * 24);
-    const remaining = Math.max(0, Math.ceil(TRIAL_DAYS - elapsedDays));
-    if (remaining > 0) {
-      return { status: 'trial', trialDaysRemaining: remaining, plan: null, premiumUntil: null };
-    }
-    return { status: 'expired', trialDaysRemaining: 0, plan: null, premiumUntil: null };
-  }
-
-  const today = new Date().toISOString();
-  await setSetting(SETTING_TRIAL, today);
-  return { status: 'trial', trialDaysRemaining: TRIAL_DAYS, plan: null, premiumUntil: null };
+  return { status: 'active', trialDaysRemaining: 0, plan: 'lifetime', premiumUntil: 'lifetime' };
 }
 
 /** Activate premium after payment — stores plan + expiry. */
