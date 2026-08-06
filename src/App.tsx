@@ -611,7 +611,6 @@ function AppInner() {
               decks={decks}
               cards={cards}
               streakDays={streakDays}
-              xp={userXp}
               onSelectDeck={handleSelectDeck}
               onCreateDeck={handleCreateDeck}
               onDeleteDeck={handleDeleteDeck}
