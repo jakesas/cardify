@@ -1,4 +1,4 @@
-import { useState, useEffect, type FC } from 'react';
+import { useState, useEffect, useRef, type FC } from 'react';
 import { Deck, Card } from '../types';
 import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal, HardDrive, RotateCcw as RestoreIcon, Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
@@ -43,6 +43,27 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   const [overflowMenuDeckId, setOverflowMenuDeckId] = useState<string | null>(null);
   const [renameDeckId, setRenameDeckId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [resetArmed, setResetArmed] = useState(false);
+  const resetArmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleResetClick = () => {
+    if (!resetArmed) {
+      setResetArmed(true);
+      if (resetArmTimer.current) clearTimeout(resetArmTimer.current);
+      resetArmTimer.current = setTimeout(() => setResetArmed(false), 3000);
+      return;
+    }
+    if (resetArmTimer.current) clearTimeout(resetArmTimer.current);
+    setResetArmed(false);
+    onResetToDefaults();
+  };
+
+  // Cleanup the arm timer on unmount
+  useEffect(() => {
+    return () => {
+      if (resetArmTimer.current) clearTimeout(resetArmTimer.current);
+    };
+  }, []);
 
   // Sync status helpers
   function getSyncStatusIcon(status: string) {
@@ -226,65 +247,78 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
             </h1>
           </div>
           
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             {recommendedDeck ? (
               <button
                 onClick={() => onSelectDeck(recommendedDeck.id, 'study')}
-                className="inline-flex items-center space-x-2 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider rounded transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 h-7 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider rounded-md transition-colors cursor-pointer"
               >
                 <span>Study recommended deck now</span>
                 <ArrowRight size={12} />
               </button>
             ) : decks.length > 0 ? (
-              <div className="inline-flex items-center space-x-2 px-3 py-1 bg-[#1F2937]/50 text-[#3FB950] text-[11px] font-mono rounded border border-[#30363D]">
+              <div className="inline-flex items-center gap-1.5 h-7 px-2.5 text-[#3FB950] text-[11px] font-mono rounded-md border border-[#30363D]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse"></span>
                 <span>All cards up to date</span>
               </div>
             ) : null}
 
-            {/* Sync Status Indicator — click to trigger a manual sync */}
-            <button
-              onClick={onSync}
-              disabled={syncStatus === 'syncing'}
-              className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#1F2937] hover:bg-[#30363D] rounded border border-[#30363D] transition-colors cursor-pointer disabled:opacity-60"
-              title={`${getSyncStatusTitle(syncStatus)} (click to sync now)`}>
-              {getSyncStatusIcon(syncStatus)}
-              <span className="text-[11px] font-mono">{getSyncStatusText(syncStatus)}</span>
-            </button>
+            {/* Group A — sync/backup/restore (neutral/secondary buttons) */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Sync Status Indicator — click to trigger a manual sync */}
+              <button
+                onClick={onSync}
+                disabled={syncStatus === 'syncing'}
+                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] rounded-md border border-[#30363D] transition-colors cursor-pointer disabled:opacity-60 text-[11px] font-semibold tracking-wider"
+                title={`${getSyncStatusTitle(syncStatus)} (click to sync now)`}>
+                {getSyncStatusIcon(syncStatus)}
+                <span className="font-sans">{getSyncStatusText(syncStatus)}</span>
+              </button>
 
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors cursor-pointer"
-            >
-              <Plus size={12} />
-              <span>Create deck</span>
-            </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
+              >
+                <Plus size={12} />
+                <span>Create deck</span>
+              </button>
 
-            <button
-              onClick={onBackupNow}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#1F2937] hover:bg-[#30363D] text-[#3FB950] text-[11px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors cursor-pointer"
-              title="Backup all data now"
-            >
-              <HardDrive size={12} />
-              <span>Backup now</span>
-            </button>
+              <button
+                onClick={onBackupNow}
+                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#3FB950] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
+                title="Backup all data now"
+              >
+                <HardDrive size={12} />
+                <span>Backup now</span>
+              </button>
 
-            <button
-              onClick={onRestoreBackup}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#1F2937] hover:bg-[#30363D] text-[#E3B341] text-[11px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors cursor-pointer"
-              title="Restore from last backup"
-            >
-              <RestoreIcon size={12} />
-              <span>Restore</span>
-            </button>
+              <button
+                onClick={onRestoreBackup}
+                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#E3B341] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
+                title="Restore from last backup"
+              >
+                <RestoreIcon size={12} />
+                <span>Restore</span>
+              </button>
+            </div>
 
+            {/* Vertical divider — separates neutral group from destructive action */}
+            <div className="w-px h-4 bg-[#30363D] self-center" />
+
+            {/* Group B — destructive (Flush & reset) with inline two-step confirm */}
             <button
-              onClick={onResetToDefaults}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-[#8B949E] hover:text-white text-[11px] font-semibold tracking-wider rounded transition-colors cursor-pointer"
+              onClick={handleResetClick}
               title="Reset all data"
+              className={`inline-flex items-center gap-1.5 px-[0.6875rem] h-7 text-[11px] font-semibold tracking-wider rounded-md border transition-colors cursor-pointer ${
+                resetArmed
+                  ? 'bg-[#F85149]/25 border-[#F85149] text-[#F85149] hover:bg-[#F85149]/30'
+                  : 'bg-[#F85149]/10 border-[#F85149]/30 text-[#F85149] hover:bg-[#F85149]/20'
+              }`}
             >
               <RotateCcw size={12} />
-              <span>Flush & reset decks</span>
+              <span className={resetArmed ? '' : 'hidden sm:inline'}>
+                {resetArmed ? 'Confirm reset?' : 'Flush & reset decks'}
+              </span>
             </button>
           </div>
         </div>
