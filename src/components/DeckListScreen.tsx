@@ -247,37 +247,38 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
             </h1>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2 pt-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 pt-2">
             {recommendedDeck ? (
               <button
                 onClick={() => onSelectDeck(recommendedDeck.id, 'study')}
-                className="inline-flex items-center gap-1.5 px-3 h-7 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider rounded-md transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 h-7 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider rounded-md transition-colors cursor-pointer sm:self-start"
               >
                 <span>Study recommended deck now</span>
                 <ArrowRight size={12} />
               </button>
             ) : decks.length > 0 ? (
-              <div className="inline-flex items-center gap-1.5 h-7 px-2.5 text-[#3FB950] text-[11px] font-mono rounded-md border border-[#30363D]">
+              <div className="inline-flex items-center justify-center gap-1.5 h-7 px-2.5 text-[#3FB950] text-[11px] font-mono rounded-md border border-[#30363D] sm:self-start">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse"></span>
                 <span>All cards up to date</span>
               </div>
             ) : null}
 
-            {/* Group A — sync/backup/restore (neutral/secondary buttons) */}
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Group A — sync/backup/restore (neutral/secondary buttons).
+                Even 2x2 grid on mobile; inline row on desktop. */}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
               {/* Sync Status Indicator — click to trigger a manual sync */}
               <button
                 onClick={onSync}
                 disabled={syncStatus === 'syncing'}
-                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] rounded-md border border-[#30363D] transition-colors cursor-pointer disabled:opacity-60 text-[11px] font-semibold tracking-wider"
-                title={`${getSyncStatusTitle(syncStatus)} (click to sync now)`}>
+                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] rounded-md border border-[#30363D] transition-colors cursor-pointer disabled:opacity-60 text-[11px] font-semibold tracking-wider"
+                title={`${getSyncStatusTitle(syncStatus)} (click to sync status)`}>
                 {getSyncStatusIcon(syncStatus)}
                 <span className="font-sans">{getSyncStatusText(syncStatus)}</span>
               </button>
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
               >
                 <Plus size={12} />
                 <span>Create deck</span>
@@ -285,7 +286,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
 
               <button
                 onClick={onBackupNow}
-                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#3FB950] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#3FB950] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
                 title="Backup all data now"
               >
                 <HardDrive size={12} />
@@ -294,7 +295,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
 
               <button
                 onClick={onRestoreBackup}
-                className="inline-flex items-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#E3B341] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#E3B341] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
                 title="Restore from last backup"
               >
                 <RestoreIcon size={12} />
@@ -302,23 +303,21 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
               </button>
             </div>
 
-            {/* Vertical divider — separates neutral group from destructive action */}
-            <div className="w-px h-4 bg-[#30363D] self-center" />
+            {/* Vertical separator — separates neutral group from destructive action */}
+            <div className="hidden sm:block w-px h-4 bg-[#30363D] self-center" />
 
             {/* Group B — destructive (Flush & reset) with inline two-step confirm */}
             <button
               onClick={handleResetClick}
               title="Reset all data"
-              className={`inline-flex items-center gap-1.5 px-[0.6875rem] h-7 text-[11px] font-semibold tracking-wider rounded-md border transition-colors cursor-pointer ${
+              className={`inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 text-[11px] font-semibold tracking-wider rounded-md border transition-colors cursor-pointer w-full sm:w-auto ${
                 resetArmed
                   ? 'bg-[#F85149]/25 border-[#F85149] text-[#F85149] hover:bg-[#F85149]/30'
                   : 'bg-[#F85149]/10 border-[#F85149]/30 text-[#F85149] hover:bg-[#F85149]/20'
               }`}
             >
               <RotateCcw size={12} />
-              <span className={resetArmed ? '' : 'hidden sm:inline'}>
-                {resetArmed ? 'Confirm reset?' : 'Flush & reset decks'}
-              </span>
+              <span>{resetArmed ? 'Confirm reset?' : 'Flush & reset decks'}</span>
             </button>
           </div>
         </div>
