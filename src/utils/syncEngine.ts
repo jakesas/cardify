@@ -30,6 +30,7 @@ import {
   toFirestoreCard,
   toFirestoreReview,
   fromFirestoreDeck,
+  serialize,
   SYNC_COLLECTIONS,
   SyncState,
 } from './syncTypes';
@@ -229,12 +230,12 @@ async function pullRemoteChanges(uid: string): Promise<void> {
 // Update sync state in Firestore
 async function updateSyncState(uid: string): Promise<void> {
   const cols = getUserCollections(uid);
-  await setDoc(cols.syncState, {
+  await setDoc(cols.syncState, serialize({
     lastIncrementalSyncAt: new Date().toISOString(),
     lastFullSyncAt: syncState.lastFullSyncAt,
     deviceId: syncState.deviceId,
     updatedAt: new Date().toISOString(),
-  }, { merge: true });
+  }), { merge: true });
 }
 
 // --- Full Sync Orchestration ---

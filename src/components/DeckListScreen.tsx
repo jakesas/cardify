@@ -14,6 +14,7 @@ interface DeckListScreenProps {
   onResetToDefaults: () => void;
   onBackupNow: () => Promise<void>;
   onRestoreBackup: () => Promise<void>;
+  onSync: () => Promise<void>;
   onShareDeck: (deckId: string) => void;
   onShareToGroup: (deckId: string) => void;
   syncStatus: 'synced' | 'syncing' | 'pending' | 'offline' | 'error';
@@ -30,6 +31,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   onResetToDefaults,
   onBackupNow,
   onRestoreBackup,
+  onSync,
   onShareDeck,
   onShareToGroup,
   syncStatus,
@@ -240,12 +242,15 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
               </div>
             ) : null}
 
-            {/* Sync Status Indicator */}
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#1F2937] hover:bg-[#30363D] rounded border border-[#30363D] transition-colors"
-                 title={getSyncStatusTitle(syncStatus)}>
+            {/* Sync Status Indicator — click to trigger a manual sync */}
+            <button
+              onClick={onSync}
+              disabled={syncStatus === 'syncing'}
+              className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#1F2937] hover:bg-[#30363D] rounded border border-[#30363D] transition-colors cursor-pointer disabled:opacity-60"
+              title={`${getSyncStatusTitle(syncStatus)} (click to sync now)`}>
               {getSyncStatusIcon(syncStatus)}
               <span className="text-[11px] font-mono">{getSyncStatusText(syncStatus)}</span>
-            </div>
+            </button>
 
             <button
               onClick={() => setShowCreateModal(true)}

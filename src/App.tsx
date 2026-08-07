@@ -28,7 +28,7 @@ import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard,
 import { getDb, setDbUser } from './db/client';
 import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
 import { backupBeforeDestructive, maybeAutoBackup, createBackup, restoreLatestBackup } from './utils/backup';
-import { initializeSync } from './utils/syncEngine';
+import { initializeSync, triggerManualSync } from './utils/syncEngine';
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -40,6 +40,8 @@ function AppInner() {
   const [_userXp, setUserXp] = useState<number>(0);
 
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'pending' | 'offline' | 'error'>('synced');
   const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'library' | 'groups' | 'group-detail'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [shareDeckId, setShareDeckId] = useState<string | null>(null);
@@ -201,6 +203,13 @@ function AppInner() {
     const timer = setTimeout(() => setError(null), 5000);
     return () => clearTimeout(timer);
   }, [error]);
+
+  // Auto-dismiss success notices after 4 seconds
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const handleReviewCard = async (cardId: string, rating: 1 | 2 | 3 | 4) => {
     try {
@@ -431,6 +440,15 @@ function AppInner() {
         </div>
       )}
 
+      {notice && (
+        <div className="fixed top-4 right-4 z-50 flex items-center space-x-2 px-4 py-2 bg-[#3FB950]/10 border border-[#3FB950]/30 rounded text-xs font-mono text-[#3FB950] shadow-lg animate-fade-in max-w-sm">
+          <span className="flex-grow">{notice}</span>
+          <button onClick={() => setNotice(null)} className="text-[#3FB950] hover:text-white cursor-pointer">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="relative z-10 max-w-6xl mx-auto px-3 md:px-6 lg:px-8 py-2 md:py-3 flex flex-col min-h-screen pb-20 md:pb-3">
         <header className="pb-2 mb-3 border-b border-[#2D333B]">
           {/* Three-zone layout: left (brand+timer) | center (nav) | right (actions) */}
@@ -641,21 +659,46 @@ function AppInner() {
               onRenameDeck={handleRenameDeck}
               onResetToDefaults={handleResetToDefaults}
               onBackupNow={async () => {
-                await createBackup('manual');
-                setError(null);
+                try {
+                  await createBackup('manual');
+                  setNotice('Backup created');
+                  setError(null);
+                } catch (err) {
+                  console.error('Backup failed:', err);
+                  setError(err instanceof Error ? err.message : 'Backup failed');
+                }
               }}
               onRestoreBackup={async () => {
-                const result = await restoreLatestBackup();
-                if (result) {
-                  await loadAllData();
+                try {
+                  const result = await restoreLatestBackup();
+                  if (result) {
+                    await loadAllData();
+                    setNotice(`Restored ${result.decks} decks, ${result.cards} cards, ${result.reviews} reviews`);
+                    setError(null);
+                  } else {
+                    setError('No backup found to restore');
+                  }
+                } catch (err) {
+                  console.error('Restore failed:', err);
+                  setError(err instanceof Error ? err.message : 'Restore failed');
+                }
+              }}
+              onSync={async () => {
+                setSyncStatus('syncing');
+                try {
+                  await triggerManualSync();
+                  setSyncStatus('synced');
+                  setNotice('Synced with cloud');
                   setError(null);
-                } else {
-                  setError('No backup found to restore');
+                } catch (err) {
+                  console.error('Sync failed:', err);
+                  setSyncStatus('error');
+                  setError(err instanceof Error ? err.message : 'Sync failed');
                 }
               }}
               onShareDeck={handleShareDeck}
               onShareToGroup={handleShareToGroup}
-              syncStatus="synced"
+              syncStatus={syncStatus}
             />
           )}
 

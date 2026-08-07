@@ -52,7 +52,7 @@ export const SYNC_COLLECTIONS = {
 } as const;
 
 // Convert local entity → Firestore document (adds sync metadata)
-function serialize<T extends object>(data: T): T {
+export function serialize<T extends object>(data: T): T {
   const clean = {} as T;
   for (const key of Object.keys(data) as (keyof T)[]) {
     if (data[key] !== undefined) clean[key] = data[key];
