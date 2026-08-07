@@ -45,8 +45,10 @@ export const SYNC_COLLECTIONS = {
   decks: (uid: string) => `users/${uid}/decks`,
   cards: (uid: string) => `users/${uid}/cards`,
   reviews: (uid: string) => `users/${uid}/reviews`,
-  // Meta document for sync state
-  syncState: (uid: string) => `users/${uid}/syncState`,
+  // Metadata for sync state lives as fields on the user doc itself.
+  // Paths must contain an EVEN number of segments to be a valid Firestore
+  // document reference; decks/cards/reviews are subcollections under it.
+  syncState: (uid: string) => `users/${uid}`,
 } as const;
 
 // Convert local entity → Firestore document (adds sync metadata)
