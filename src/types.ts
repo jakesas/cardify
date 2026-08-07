@@ -50,6 +50,7 @@ export interface Deck {
   description: string;
   studyMaterial?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ReviewHistory {

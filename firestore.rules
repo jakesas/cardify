@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Per-user data isolation: every user can only access their own data
+    match /users/{uid} {
+      // Allow users to read/write their own user document
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Decks subcollection
+      match /decks/{deckId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Cards subcollection
+      match /cards/{cardId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Reviews subcollection
+      match /reviews/{reviewId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Sync state document
+      match /syncState/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

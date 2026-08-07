@@ -31,3 +31,6 @@ metadata.json
 
 # Agent workflow state
 .omo/
+
+# Playwright MCP test snapshots
+.playwright-mcp/

@@ -1,5 +1,6 @@
 ﻿import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
-import { initFirebase, loginEmail, registerEmail, loginGoogle, loginGoogleRedirect, handleRedirectResult, logoutUser, onAuthChange } from '../lib/firebase';
+import { isTauri } from '@tauri-apps/api/core';
+import { initFirebase, loginEmail, registerEmail, loginGoogle, loginGoogleSystemBrowser, loginGoogleRedirect, handleRedirectResult, logoutUser, onAuthChange } from '../lib/firebase';
 import type { User } from 'firebase/auth';
 
 interface AuthState {
@@ -42,13 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const autoFallback = useRef(false);
 
   const loginWithGoogle = async () => {
+    if (isTauri()) {
+      await loginGoogleSystemBrowser();
+      return;
+    }
     if (autoFallback.current) {
       loginGoogleRedirect();
       return;
     }
     try {
       await loginGoogle();
-    } catch {
+    } catch (err) {
       autoFallback.current = true;
       loginGoogleRedirect();
     }

@@ -26,8 +26,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
 import { getDb, setDbUser } from './db/client';
-import { listUserGroups } from './lib/groups';
 import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
+import { backupBeforeDestructive, maybeAutoBackup, createBackup, restoreLatestBackup } from './utils/backup';
+import { initializeSync } from './utils/syncEngine';
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -36,7 +37,7 @@ function AppInner() {
   const [cards, setCards] = useState<Card[]>([]);
   const [history, setHistory] = useState<ReviewHistory[]>([]);
   const [streakDays, setStreakDays] = useState<number>(0);
-  const [userXp, setUserXp] = useState<number>(0);
+  const [_userXp, setUserXp] = useState<number>(0);
 
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'library' | 'groups' | 'group-detail'>('decks');
@@ -60,20 +61,32 @@ function AppInner() {
       try {
         setDbUser(uid);
 
-        // One-time migration: wipe old seed data for existing users
+        // Auto-backup on startup (once per day)
+        await maybeAutoBackup('auto-startup');
+
+        // Backup BEFORE any schema migration runs — safety net first
+        await backupBeforeDestructive('pre-migration');
+
+        // Remove only legacy sample decks (blanket DELETE destroyed user data).
         const schema = await getSetting('db_schema');
         if (schema !== '2') {
           const db = await getDb();
-          await db.execute('DELETE FROM reviews');
-          await db.execute('DELETE FROM cards');
-          await db.execute('DELETE FROM decks');
+          const seedRows = await db.select<{ id: number }[]>(
+            "SELECT id FROM decks WHERE name IN ('Getting Started', 'SRS Fundamentals', 'Study Tips', 'Custom Deck')"
+          );
+          for (const row of seedRows) {
+            await db.execute('DELETE FROM cards WHERE deck_id = ?', [row.id]);
+            await db.execute('DELETE FROM decks WHERE id = ?', [row.id]);
+          }
           await setSetting('db_schema', '2');
         }
 
-        const xpStr = await getSetting('user_xp');
-        if (xpStr) setUserXp(parseInt(xpStr, 10));
-
         await loadAllData();
+        
+        // Initialize Firestore sync after data is loaded
+        if (user) {
+          await initializeSync(user);
+        }
       } catch (err) {
         console.error('Failed to initialize database:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize database');
@@ -128,6 +141,14 @@ function AppInner() {
   }, [user]);
 
   useEffect(() => {
+    // Preserve the Firebase OAuth redirect result when it arrives in the URL
+    // hash (signInWithRedirect returns #access_token=...&id_token=...).
+    // Overwriting the hash here would destroy the tokens before AuthProvider's
+    // getRedirectResult() reads them, silently aborting Google sign-in.
+    const currentHash = window.location.hash;
+    if (currentHash.includes('access_token=') || currentHash.includes('id_token=')) {
+      return;
+    }
     let hash = activeTab;
     if (activeTab === 'group-detail' && selectedGroupId) {
       hash += `/${selectedGroupId}`;
@@ -358,6 +379,9 @@ function AppInner() {
   const handleResetToDefaults = async () => {
     if (confirm('Are you sure you want to delete ALL data? This cannot be undone.')) {
       try {
+        // Backup BEFORE the destructive wipe — safety net
+        await backupBeforeDestructive('pre-reset');
+
         const db = await getDb();
         await db.execute('DELETE FROM reviews');
         await db.execute('DELETE FROM cards');
@@ -616,8 +640,22 @@ function AppInner() {
               onDeleteDeck={handleDeleteDeck}
               onRenameDeck={handleRenameDeck}
               onResetToDefaults={handleResetToDefaults}
+              onBackupNow={async () => {
+                await createBackup('manual');
+                setError(null);
+              }}
+              onRestoreBackup={async () => {
+                const result = await restoreLatestBackup();
+                if (result) {
+                  await loadAllData();
+                  setError(null);
+                } else {
+                  setError('No backup found to restore');
+                }
+              }}
               onShareDeck={handleShareDeck}
               onShareToGroup={handleShareToGroup}
+              syncStatus="synced"
             />
           )}
 

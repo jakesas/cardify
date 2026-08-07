@@ -1,6 +1,6 @@
 import { useState, useEffect, type FC } from 'react';
 import { Deck, Card } from '../types';
-import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal } from 'lucide-react';
+import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal, HardDrive, RotateCcw as RestoreIcon, Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
 
 interface DeckListScreenProps {
@@ -12,8 +12,11 @@ interface DeckListScreenProps {
   onDeleteDeck: (deckId: string) => void;
   onRenameDeck: (deckId: string, name: string) => void;
   onResetToDefaults: () => void;
+  onBackupNow: () => Promise<void>;
+  onRestoreBackup: () => Promise<void>;
   onShareDeck: (deckId: string) => void;
   onShareToGroup: (deckId: string) => void;
+  syncStatus: 'synced' | 'syncing' | 'pending' | 'offline' | 'error';
 }
 
 export const DeckListScreen: FC<DeckListScreenProps> = ({
@@ -25,8 +28,11 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   onDeleteDeck,
   onRenameDeck,
   onResetToDefaults,
+  onBackupNow,
+  onRestoreBackup,
   onShareDeck,
   onShareToGroup,
+  syncStatus,
 }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
@@ -35,6 +41,58 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   const [overflowMenuDeckId, setOverflowMenuDeckId] = useState<string | null>(null);
   const [renameDeckId, setRenameDeckId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+
+  // Sync status helpers
+  function getSyncStatusIcon(status: string) {
+    switch (status) {
+      case 'synced':
+        return <Cloud className="text-[#3FB950]" size={14} />;
+      case 'syncing':
+        return <RefreshCw className="text-[#E3B341] animate-spin" size={14} />;
+      case 'pending':
+        return <CloudOff className="text-[#E3B341]" size={14} />;
+      case 'offline':
+        return <CloudOff className="text-[#8B949E]" size={14} />;
+      case 'error':
+        return <AlertTriangle className="text-[#F85149]" size={14} />;
+      default:
+        return <Cloud className="text-[#8B949E]" size={14} />;
+    }
+  }
+
+  function getSyncStatusText(status: string) {
+    switch (status) {
+      case 'synced':
+        return 'Synced';
+      case 'syncing':
+        return 'Syncing...';
+      case 'pending':
+        return 'Pending';
+      case 'offline':
+        return 'Offline';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  function getSyncStatusTitle(status: string) {
+    switch (status) {
+      case 'synced':
+        return 'All data synced to cloud';
+      case 'syncing':
+        return 'Syncing with cloud...';
+      case 'pending':
+        return 'Changes pending sync';
+      case 'offline':
+        return 'Offline - will sync when online';
+      case 'error':
+        return 'Sync failed - click to retry';
+      default:
+        return 'Sync status unknown';
+    }
+  }
 
   const todayStr = getLocalDateString();
 
@@ -182,12 +240,37 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
               </div>
             ) : null}
 
+            {/* Sync Status Indicator */}
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#1F2937] hover:bg-[#30363D] rounded border border-[#30363D] transition-colors"
+                 title={getSyncStatusTitle(syncStatus)}>
+              {getSyncStatusIcon(syncStatus)}
+              <span className="text-[11px] font-mono">{getSyncStatusText(syncStatus)}</span>
+            </div>
+
             <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors cursor-pointer"
             >
               <Plus size={12} />
               <span>Create deck</span>
+            </button>
+
+            <button
+              onClick={onBackupNow}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#1F2937] hover:bg-[#30363D] text-[#3FB950] text-[11px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors cursor-pointer"
+              title="Backup all data now"
+            >
+              <HardDrive size={12} />
+              <span>Backup now</span>
+            </button>
+
+            <button
+              onClick={onRestoreBackup}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#1F2937] hover:bg-[#30363D] text-[#E3B341] text-[11px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors cursor-pointer"
+              title="Restore from last backup"
+            >
+              <RestoreIcon size={12} />
+              <span>Restore</span>
             </button>
 
             <button

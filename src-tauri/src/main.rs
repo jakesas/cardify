@@ -31,6 +31,8 @@ pub fn run() {
             .add_migrations("sqlite:ccna-srs.db", migrations)
             .build())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_oauth::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let app_handle = app.handle();
             let data_dir = app_handle
