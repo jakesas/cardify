@@ -52,37 +52,45 @@ export const SYNC_COLLECTIONS = {
 } as const;
 
 // Convert local entity → Firestore document (adds sync metadata)
+function serialize<T extends object>(data: T): T {
+  const clean = {} as T;
+  for (const key of Object.keys(data) as (keyof T)[]) {
+    if (data[key] !== undefined) clean[key] = data[key];
+  }
+  return clean;
+}
+
 export function toFirestoreDeck(deck: Deck, deviceId: string): FirestoreDeck {
   const now = new Date().toISOString();
-  return {
+  return serialize<FirestoreDeck>({
     ...deck,
     updatedAt: now,
     version: 1,
     syncedAt: undefined,
     deviceId,
-  };
+  });
 }
 
 export function toFirestoreCard(card: Card, deviceId: string): FirestoreCard {
   const now = new Date().toISOString();
-  return {
+  return serialize<FirestoreCard>({
     ...card,
     updatedAt: now,
     version: 1,
     syncedAt: undefined,
     deviceId,
-  };
+  });
 }
 
 export function toFirestoreReview(review: ReviewHistory, deviceId: string): FirestoreReview {
   const now = new Date().toISOString();
-  return {
+  return serialize<FirestoreReview>({
     ...review,
     updatedAt: now,
     version: 1,
     syncedAt: undefined,
     deviceId,
-  };
+  });
 }
 
 // Convert Firestore document → local entity (strips sync metadata)
