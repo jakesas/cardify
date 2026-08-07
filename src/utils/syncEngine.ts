@@ -12,6 +12,7 @@ import {
   where,
   limit,
   enableNetwork,
+  disableNetwork,
   type Firestore,
 } from 'firebase/firestore';
 import { getFirebaseApp } from '../lib/firebase';
@@ -243,7 +244,6 @@ async function performSync(uid: string): Promise<void> {
   isSyncing = true;
 
   try {
-    await enableNetwork(db);
     syncState.isOnline = true;
 
     // Push local → remote
@@ -338,13 +338,21 @@ export async function initializeSync(user: User): Promise<void> {
   // Start periodic sync
   startSyncLoop();
 
-  // Listen for online/offline
+  // Listen for online/offline — changes are the only place we toggle network.
+  // Balanced enable/disable avoids the Firestore "ca9" internal assertion that
+  // repeated enableNetwork() calls (without disableNetwork in between) trigger.
   window.addEventListener('online', () => {
-    syncState.isOnline = true;
-    if (currentUser) performSync(currentUser.uid);
+    if (!syncState.isOnline) {
+      syncState.isOnline = true;
+      enableNetwork(db).catch(() => {});
+      if (currentUser) performSync(currentUser.uid);
+    }
   });
   window.addEventListener('offline', () => {
-    syncState.isOnline = false;
+    if (syncState.isOnline) {
+      syncState.isOnline = false;
+      disableNetwork(db).catch(() => {});
+    }
   });
 }
 
