@@ -1,4 +1,5 @@
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, User, type Auth } from 'firebase/auth';
+import type { FirebaseApp } from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -11,6 +12,7 @@ import {
   where,
   limit,
   enableNetwork,
+  type Firestore,
 } from 'firebase/firestore';
 import { getFirebaseApp } from '../lib/firebase';
 import {
@@ -31,9 +33,25 @@ import {
   SyncState,
 } from './syncTypes';
 
-const app = getFirebaseApp();
-const db = getFirestore(app);
-const auth = getAuth();
+// Firebase is initialized lazily inside initializeSync(). The module must NOT
+// touch getFirebaseApp()/getFirestore() at import time — importing this file
+// happens before AuthProvider's effect calls initFirebase(), so a top-level
+// getFirebaseApp() here throws "Firebase not initialized" and crashes the app.
+let app!: FirebaseApp;
+let db!: Firestore;
+let auth!: Auth;
+
+function ensureFirebase(): void {
+  if (!app) {
+    app = getFirebaseApp();
+  }
+  if (!db) {
+    db = getFirestore(app);
+  }
+  if (!auth) {
+    auth = getAuth(app);
+  }
+}
 
 const SYNC_INTERVAL_MS = 30 * 1000; // 30 seconds
 const MAX_RETRY_ATTEMPTS = 3;
@@ -292,6 +310,7 @@ async function flushOfflineQueue(uid: string): Promise<void> {
 // --- Sync Loop & Lifecycle ---
 
 export async function initializeSync(user: User): Promise<void> {
+  ensureFirebase();
   currentUser = user;
   syncState.deviceId = generateDeviceId();
 
