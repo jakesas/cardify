@@ -494,6 +494,8 @@ export async function structureStudyMaterial(
   title: string,
   onChunk?: (text: string) => void
 ): Promise<string> {
+  const safeText = truncateToTokenBudget(rawText, 2600);
+
   const body = {
     model: 'llama-3.1-8b-instant',
     messages: [
@@ -521,11 +523,11 @@ FORMATTING REQUIREMENTS (follow every one):
       },
       {
         role: 'user' as const,
-        content: `Title: ${title}\n\nRaw text:\n${rawText}`
+        content: `Title: ${title}\n\nRaw text:\n${safeText}`
       }
     ],
     temperature: 0.1,
-    max_tokens: 4096,
+    max_tokens: 2304,
     stream: true as const,
   };
 

@@ -4,10 +4,12 @@ import {
   ArrowLeft, Edit3, Save, BookOpen, Play, ChevronLeft, ChevronRight,
   Timer, Pause, RotateCcw, Clock, Zap,
   Bold, Italic, Code, Minus, List, Quote, Heading1, Heading2, Heading3, Sparkles,
+  Wand2, Loader2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { generateStudyMaterialFromCards } from '../utils/generateStudyMaterial';
+import { createGroqClient, getAiConfig, structureStudyMaterial } from '../utils/groq';
 
 interface StudyMaterialScreenProps {
   deck: Deck;
@@ -120,6 +122,10 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
   const [currentPage, setCurrentPage] = useState(0);
   const [pageDir, setPageDir] = useState<'next' | 'prev'>('next');
   const [isAnimating, setIsAnimating] = useState(false);
+
+  // AI reconstruction of messy study material
+  const [isReconstructing, setIsReconstructing] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   // Pomodoro timer
   const POMODORO_FOCUS = 25 * 60;
@@ -260,6 +266,37 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
       alert('Failed to save study material.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleReconstruct = async () => {
+    const original = material;
+    if (!original.trim()) return;
+
+    const aiConfig = getAiConfig();
+    if (!aiConfig) {
+      setAiError('AI reconstruction unavailable — API key not configured');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Send your current notes to the AI and replace them with a clean, structured version?'
+    );
+    if (!confirmed) return;
+
+    setIsReconstructing(true);
+    setAiError('');
+    try {
+      const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
+      const rebuilt = await structureStudyMaterial(client, original, deck.name, (chunk) => {
+        setMaterial(chunk);
+      });
+      if (rebuilt.trim()) setMaterial(rebuilt);
+    } catch (err: any) {
+      setMaterial(original);
+      setAiError(err instanceof Error ? err.message : 'AI reconstruction failed');
+    } finally {
+      setIsReconstructing(false);
     }
   };
 
@@ -551,6 +588,28 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
                   </div>
                 )}
 
+                {/* AI Reconstruct — rewrite messy material into a clean, structured draft */}
+                <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-[#2D333B]">
+                  <button
+                    type="button"
+                    disabled={isReconstructing || !material.trim()}
+                    title="Send your notes to the AI and get back a clean, structured version"
+                    onClick={handleReconstruct}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-mono font-bold cursor-pointer select-none transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{
+                      background: isReconstructing
+                        ? 'linear-gradient(135deg, rgba(99,179,237,.2), rgba(88,166,255,.12))'
+                        : 'linear-gradient(135deg, rgba(99,179,237,.15), rgba(88,166,255,.08))',
+                      border: isReconstructing ? '1px solid rgba(99,179,237,.6)' : '1px solid rgba(99,179,237,.35)',
+                      color: isReconstructing ? '#79C0FF' : '#58A6FF',
+                      boxShadow: isReconstructing ? '0 0 12px rgba(99,179,237,.25)' : '0 0 8px rgba(99,179,237,.12)',
+                    }}
+                  >
+                    {isReconstructing ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
+                    <span>{isReconstructing ? 'Reconstructing…' : 'Reconstruct with AI'}</span>
+                  </button>
+                </div>
+
                 {/* Headings group */}
                 <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-[#2D333B]">
                   <ToolbarBtn title="Page Section (##)" onClick={() => insertMarkdown('## ')}>
@@ -616,6 +675,18 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
                 className="flex-grow w-full bg-[#0D1117] p-5 text-[#E0E0E0] text-sm font-mono focus:outline-none resize-none leading-relaxed"
                 style={{ minHeight: '50vh', borderTop: 'none' }}
               />
+
+              {aiError && (
+                <div className="flex items-center justify-between gap-3 px-4 py-2 bg-[#F85149]/10 border-t border-[#F85149]/30">
+                  <p className="text-[10px] font-mono text-[#F85149]">{aiError}</p>
+                  <button
+                    onClick={() => setAiError('')}
+                    className="px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#F85149] hover:bg-[#F85149]/10 rounded cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
             </div>
           ) : material.trim() ? (
             /* ── Read Mode ── */
