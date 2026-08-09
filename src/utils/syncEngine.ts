@@ -264,8 +264,11 @@ async function performSync(uid: string): Promise<void> {
     // Push local → remote
     await pushLocalChanges(uid);
 
-    // Pull remote → local (simplified for now)
-    // await pullRemoteChanges(uid);
+    // Pull remote → local (downloads decks/cards from other devices)
+    await pullRemoteChanges(uid);
+
+    // Notify the app to reload its data from the local DB
+    if (onDataChangedCallback) onDataChangedCallback();
 
     await updateSyncState(uid);
 
@@ -324,10 +327,14 @@ async function flushOfflineQueue(uid: string): Promise<void> {
 
 // --- Sync Loop & Lifecycle ---
 
-export async function initializeSync(user: User): Promise<void> {
+// Callback invoked after a successful pull so the UI can reload local data
+let onDataChangedCallback: (() => void) | null = null;
+
+export async function initializeSync(user: User, onDataChanged?: () => void): Promise<void> {
   ensureFirebase();
   currentUser = user;
   syncState.deviceId = generateDeviceId();
+  if (onDataChanged) onDataChangedCallback = onDataChanged;
 
   // Load persisted sync state
   const lastSync = await getSetting('sync:lastIncrementalSyncAt');

@@ -85,9 +85,9 @@ function AppInner() {
 
         await loadAllData();
         
-        // Initialize Firestore sync after data is loaded
+        // Initialize Firestore sync — pass loadAllData so the UI refreshes after every pull
         if (user) {
-          await initializeSync(user);
+          await initializeSync(user, loadAllData);
         }
       } catch (err) {
         console.error('Failed to initialize database:', err);

@@ -695,10 +695,10 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
             <button
               onClick={() => setShowLibrarian(true)}
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-[#E3B341] transition-all cursor-pointer border border-[#E3B341]/40 hover:bg-[#E3B341]/10 flex-shrink-0"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-[#E3B341] transition-all cursor-pointer border border-[#E3B341]/40 hover:bg-[#E3B341]/10 w-full sm:w-auto"
               title="Ask the AI librarian for study help, recommendations, or summaries"
             >
               <Bot size={15} />
@@ -707,7 +707,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
             <button
               onClick={() => setShowUploadModal(true)}
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 flex-shrink-0"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 w-full sm:w-auto"
               style={{
                 background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
                 boxShadow: '0 0 20px rgba(227, 179, 65, 0.3)',
