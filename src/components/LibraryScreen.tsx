@@ -24,7 +24,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   generateQuizFromText, type QuizQuestion, getAiConfig, createGroqClient,
-  summarizeDocument, askLibrarian, type LibraryCatalogEntry,
+  summarizeDocument, askLibrarian, type LibraryCatalogEntry, structureStudyMaterial,
 } from '../utils/groq';
 
 interface LibraryScreenProps {
@@ -146,6 +146,16 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const [chatThinking, setChatThinking] = useState(false);
   const [chatError, setChatError] = useState('');
 
+  // AI Reconstruct
+  const [reconstructedPages, setReconstructedPages] = useState<Record<string, string>>({});
+  const [isReconstructing, setIsReconstructing] = useState(false);
+  const [isReconstructingAll, setIsReconstructingAll] = useState(false);
+  const [reconstructAllProgress, setReconstructAllProgress] = useState({ current: 0, total: 0 });
+  const [showReconstructed, setShowReconstructed] = useState(false);
+  const [reconstructProgress, setReconstructProgress] = useState('');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
   // Fetch public library list
   const fetchLibrary = async () => {
     setLoading(true);
@@ -208,12 +218,148 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     return result;
   }, [resources, selectedSubject, searchQuery, sortBy]);
 
+  // ── localStorage helpers for persist-across-sessions ──
+  const LS_PREFIX = 'cardify_reconstruct_';
+  const saveReconstructed = (key: string, content: string) => {
+    try { localStorage.setItem(LS_PREFIX + key, content); } catch { /* quota */ }
+  };
+  const loadReconstructed = (key: string): string | null => {
+    try { return localStorage.getItem(LS_PREFIX + key); } catch { return null; }
+  };
+  /** Load all cached pages for a given resource into state */
+  const preloadCachedReconstructions = (resourceId: string, totalPages: number) => {
+    const loaded: Record<string, string> = {};
+    for (let i = 0; i < totalPages; i++) {
+      const key = `${resourceId}__p${i}`;
+      const cached = loadReconstructed(key);
+      if (cached) loaded[key] = cached;
+    }
+    if (Object.keys(loaded).length > 0) {
+      setReconstructedPages(prev => ({ ...prev, ...loaded }));
+    }
+  };
+
+  // AI Reconstruct current page for clean reading
+  const handleReconstructPage = async () => {
+    if (!activeResource) return;
+
+    // Capture the page index NOW so async callbacks use the correct key even if user navigates
+    const capturedPage = currentReaderPage;
+    const pageKey = `${activeResource.id}__p${capturedPage}`;
+
+    // Already reconstructed — just toggle view
+    if (reconstructedPages[pageKey]) {
+      setShowReconstructed(v => !v);
+      return;
+    }
+
+    const aiConfig = getAiConfig();
+    if (!aiConfig) {
+      alert('AI features are not configured.');
+      return;
+    }
+
+    setIsReconstructing(true);
+    setShowReconstructed(true);
+    setReconstructProgress('Reading content…');
+
+    try {
+      const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
+      const rawText = readerPages.length > 0 ? readerPages[capturedPage] : activeResource.content;
+      const result = await structureStudyMaterial(
+        client,
+        rawText,
+        activeResource.title,
+        (partial) => {
+          // Always key by the captured page, never stale currentReaderPage
+          setReconstructedPages(prev => ({ ...prev, [pageKey]: partial }));
+          setReconstructProgress('');
+        },
+      );
+      // Final result — save to state AND localStorage
+      setReconstructedPages(prev => ({ ...prev, [pageKey]: result }));
+      saveReconstructed(pageKey, result);
+    } catch (err: any) {
+      alert('AI Reconstruct failed: ' + (err?.message || 'Unknown error'));
+      setShowReconstructed(false);
+    } finally {
+      setIsReconstructing(false);
+      setReconstructProgress('');
+    }
+  };
+
+  // Reconstruct ALL pages of the document sequentially (token-efficient: serial, cached)
+  const handleReconstructAll = async () => {
+    if (!activeResource || isReconstructingAll || isReconstructing) return;
+    const aiConfig = getAiConfig();
+    if (!aiConfig) { alert('AI features are not configured.'); return; }
+
+    const pages = readerPages.length > 0 ? readerPages : [activeResource.content];
+    const total = pages.length;
+    setIsReconstructingAll(true);
+    setShowReconstructed(true);
+    setReconstructAllProgress({ current: 0, total });
+
+    const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
+    // Groq free tier: ~30 req/min. 2.5s between pages stays safely under the limit.
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+    for (let i = 0; i < pages.length; i++) {
+      const pageKey = `${activeResource.id}__p${i}`;
+      // Skip already-cached pages — no AI call needed
+      if (reconstructedPages[pageKey] || loadReconstructed(pageKey)) {
+        const cached = loadReconstructed(pageKey);
+        if (cached) setReconstructedPages(prev => ({ ...prev, [pageKey]: cached }));
+        setReconstructAllProgress({ current: i + 1, total });
+        continue;
+      }
+
+      let retries = 0;
+      while (retries <= 2) {
+        try {
+          const capturedKey = pageKey;
+          const result = await structureStudyMaterial(
+            client,
+            pages[i],
+            activeResource.title,
+            (partial) => {
+              setReconstructedPages(prev => ({ ...prev, [capturedKey]: partial }));
+            },
+          );
+          setReconstructedPages(prev => ({ ...prev, [capturedKey]: result }));
+          saveReconstructed(capturedKey, result);
+          break;
+        } catch (err: any) {
+          const is429 = err?.status === 429 || String(err?.message).includes('429');
+          if (is429 && retries < 2) {
+            retries++;
+            await delay(8000 * retries); // 8s then 16s backoff
+          } else {
+            break; // skip page on non-rate-limit error or max retries
+          }
+        }
+      }
+
+      setReconstructAllProgress({ current: i + 1, total });
+      // Polite pause between pages to respect rate limits
+      if (i < pages.length - 1) await delay(2500);
+    }
+
+    setIsReconstructingAll(false);
+    setReconstructAllProgress({ current: 0, total: 0 });
+  };
+
   // Open resource for reading
   const handleOpenResource = async (meta: LibraryResourceMeta) => {
     setLoadingContent(true);
     setActiveResource(null);
     setScrollProgress(0);
     setCurrentReaderPage(0);
+    // Reset reconstruct UI state so a new document starts fresh
+    setShowReconstructed(false);
+    setIsReconstructing(false);
+    setReconstructProgress('');
+    setReconstructedPages({});
 
     if (useFirestore) {
       incrementResourceViews(meta.id);
@@ -223,6 +369,9 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     if (demoFound) {
       const formattedContent = autoFormatStudyContent(demoFound.content);
       setActiveResource({ ...demoFound, content: formattedContent });
+      // Pre-load any cached reconstructions for this document
+      const pages = demoFound.content ? Math.ceil(demoFound.content.length / 3000) + 1 : 1;
+      preloadCachedReconstructions(meta.id, pages);
       setLoadingContent(false);
       return;
     }
@@ -231,6 +380,9 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     if (res.success && res.data) {
       const formattedContent = autoFormatStudyContent(res.data.content);
       setActiveResource({ ...res.data, content: formattedContent });
+      // Pre-load any cached reconstructions for this document
+      const pages = formattedContent ? Math.ceil(formattedContent.length / 3000) + 1 : 1;
+      preloadCachedReconstructions(meta.id, pages);
     } else {
       alert(res.error || 'Failed to load document content');
     }
@@ -509,10 +661,10 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   }[readerTheme];
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto pb-12">
+    <div className="animate-fade-in max-w-6xl mx-auto flex flex-col h-[calc(100dvh-130px)] md:h-[calc(100vh-80px)] gap-4">
       {/* Header Banner */}
       <div
-        className="relative overflow-hidden rounded-2xl border p-6 sm:p-8"
+        className="relative overflow-hidden rounded-2xl border p-4 sm:p-6 flex-shrink-0"
         style={{
           background: 'linear-gradient(135deg, #161B22 0%, #0D1117 100%)',
           borderColor: '#2D333B',
@@ -569,7 +721,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#161B22] p-3 rounded-xl border border-[#2D333B]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#161B22] p-3 rounded-xl border border-[#2D333B] flex-shrink-0">
         {/* Search Input */}
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B949E]" />
@@ -611,7 +763,8 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
         </select>
       </div>
 
-      {/* Main Grid View */}
+      {/* Main Grid View — scrolls internally */}
+      <div className="flex-1 overflow-y-auto pr-1 -mr-1">
       {loading ? (
         <div className="flex flex-col items-center justify-center p-16 space-y-3">
           <Loader2 size={32} className="animate-spin text-[#E3B341]" />
@@ -757,6 +910,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
           })}
         </div>
       )}
+      </div>
 
       {/* ── HIGH-END EBOOK / DOCUMENT READER ── */}
       {loadingContent && (
@@ -785,123 +939,157 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
           {/* Reader App Bar */}
           <header
-            className="flex items-center justify-between px-4 sm:px-6 py-3 border-b z-20"
+            className="flex flex-row items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b z-20 gap-2"
             style={{ background: readerThemeStyles.panelBg, borderColor: readerThemeStyles.border }}
           >
             {/* Left: Back & Document Metadata */}
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <button
                 onClick={() => setActiveResource(null)}
-                className="p-2 rounded-lg transition-colors cursor-pointer opacity-80 hover:opacity-100 hover:bg-white/10"
+                className="p-1.5 sm:p-2 rounded-lg transition-colors cursor-pointer opacity-80 hover:opacity-100 hover:bg-white/10 shrink-0"
                 title="Back to Library"
               >
                 <ArrowLeft size={18} />
               </button>
 
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#E3B341]">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-hidden">
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#E3B341] truncate shrink-0 max-w-[50%]">
                     {activeResource.subject}
                   </span>
-                  <span className="text-[9px] font-mono opacity-60">
+                  <span className="text-[9px] font-mono opacity-60 truncate">
                     by {activeResource.authorName}
                   </span>
                 </div>
-                <h2 className="text-sm sm:text-base font-bold truncate leading-tight">
+                <h2 className="text-sm sm:text-base font-bold truncate leading-tight mt-0.5">
                   {activeResource.title}
                 </h2>
               </div>
             </div>
 
-            {/* Center / Right: Reader Controls & Actions */}
-            <div className="flex items-center gap-2">
-              {/* Toggle Table of Contents */}
-              {tocList.length > 0 && (
-                <button
-                  onClick={() => setShowTOC(!showTOC)}
-                  className={`p-2 rounded-lg text-xs font-mono flex items-center gap-1 transition-all cursor-pointer ${
-                    showTOC ? 'bg-[#E3B341] text-[#0F1115] font-bold' : 'opacity-70 hover:opacity-100 hover:bg-white/10'
-                  }`}
-                  title="Table of Contents"
-                >
-                  <List size={15} />
-                  <span className="hidden sm:inline">Outline</span>
-                </button>
-              )}
+            {/* Center / Right: Reader Controls & Actions — clean minimal bar */}
+            <div className="flex items-center gap-2 shrink-0">
 
-              {/* Reader Theme Selector */}
-              <div className="hidden sm:flex items-center gap-1 p-1 rounded-lg border border-white/10 bg-black/20">
+              {/* PRIMARY: Import to Deck */}
+              <button
+                onClick={() => setShowImportDialog(true)}
+                className="flex items-center justify-center w-8 h-8 bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115] rounded-lg transition-all cursor-pointer shadow-md shrink-0"
+                title="Import to Deck"
+              >
+                <BookmarkPlus size={15} />
+              </button>
+
+              {/* PRIMARY: AI Clean + All split button */}
+              <div className="flex items-center shrink-0 rounded-lg overflow-hidden border border-[#58A6FF]/40">
                 <button
-                  onClick={() => setReaderTheme('dark')}
-                  className={`p-1.5 rounded transition-all cursor-pointer ${
-                    readerTheme === 'dark' ? 'bg-[#21262D] text-[#E3B341]' : 'opacity-50 hover:opacity-100'
+                  onClick={handleReconstructPage}
+                  disabled={isReconstructing || isReconstructingAll}
+                  className={`flex items-center justify-center h-8 px-2.5 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-60 ${
+                    showReconstructed && reconstructedPages[`${activeResource.id}__p${currentReaderPage}`]
+                      ? 'bg-[#58A6FF] text-white hover:bg-[#79C0FF]'
+                      : 'bg-[#21262D] text-[#58A6FF] hover:bg-[#58A6FF]/10'
                   }`}
-                  title="Dark Studio Theme"
+                  title={showReconstructed && reconstructedPages[`${activeResource.id}__p${currentReaderPage}`] ? 'Switch back to original' : 'AI: Reconstruct this page'}
                 >
-                  <Moon size={14} />
+                  {isReconstructing ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+                  <span className="hidden sm:inline ml-1.5 text-[10px]">
+                    {showReconstructed && reconstructedPages[`${activeResource.id}__p${currentReaderPage}`] ? 'Original' : 'AI Clean'}
+                  </span>
                 </button>
+                <div className="w-px h-5 bg-[#58A6FF]/30" />
                 <button
-                  onClick={() => setReaderTheme('sepia')}
-                  className={`p-1.5 rounded transition-all cursor-pointer ${
-                    readerTheme === 'sepia' ? 'bg-[#E6D7B8] text-[#433422]' : 'opacity-50 hover:opacity-100'
-                  }`}
-                  title="Warm Sepia Reading Theme"
+                  onClick={handleReconstructAll}
+                  disabled={isReconstructing || isReconstructingAll}
+                  className="flex items-center justify-center h-8 px-2 bg-[#21262D] text-[#58A6FF] hover:bg-[#58A6FF]/10 transition-all cursor-pointer disabled:opacity-60"
+                  title={`Reconstruct all ${readerPages.length} pages at once`}
                 >
-                  <Sun size={14} />
-                </button>
-                <button
-                  onClick={() => setReaderTheme('oled')}
-                  className={`p-1.5 rounded transition-all cursor-pointer ${
-                    readerTheme === 'oled' ? 'bg-[#222222] text-white' : 'opacity-50 hover:opacity-100'
-                  }`}
-                  title="OLED Pitch Black"
-                >
-                  <Maximize2 size={14} />
+                  {isReconstructingAll ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />}
+                  <span className="hidden sm:inline text-[10px] font-bold ml-1">All</span>
                 </button>
               </div>
 
-              {/* Text Size Toggle */}
-              <button
-                onClick={() => setReaderFontSize(readerFontSize === 'normal' ? 'large' : 'normal')}
-                className="p-2 rounded-lg opacity-70 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer font-mono text-xs flex items-center gap-1"
-                title="Toggle Text Size"
-              >
-                <Type size={15} />
-                <span className="text-[10px] font-bold">{readerFontSize === 'normal' ? '100%' : '125%'}</span>
-              </button>
-
-              {/* Generate Quiz CTA */}
-              <button
-                onClick={handleGenerateQuiz}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
-              >
-                <Wand2 size={14} />
-                <span className="hidden sm:inline">Generate Quiz</span>
-              </button>
-
-              {/* Import to Deck CTA */}
-              <button
-                onClick={() => setShowImportDialog(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
-              >
-                <BookmarkPlus size={14} />
-                <span className="hidden sm:inline">Import to Deck</span>
-              </button>
-
-              {/* Generate AI Cards CTA */}
-              {onOpenAiGeneratorWithText && (
+              {/* ⋯ More dropdown — quiz, flashcards, theme, font, TOC */}
+              <div className="relative" ref={moreMenuRef}>
                 <button
-                  onClick={() => {
-                    const txt = activeResource.content;
-                    setActiveResource(null);
-                    onOpenAiGeneratorWithText(txt);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md"
+                  onClick={() => setShowMoreMenu(v => !v)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg opacity-75 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
+                  title="More options"
                 >
-                  <Sparkles size={14} />
-                  <span className="hidden sm:inline">Flashcards</span>
+                  <span className="text-base font-bold tracking-tighter leading-none">&#8943;</span>
                 </button>
-              )}
+
+                {showMoreMenu && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-52 rounded-xl border shadow-2xl z-50 py-1.5 flex flex-col overflow-hidden"
+                    style={{ background: readerThemeStyles.panelBg, borderColor: readerThemeStyles.border }}
+                    onClick={() => setShowMoreMenu(false)}
+                  >
+                    {/* TOC toggle */}
+                    {tocList.length > 0 && (
+                      <button
+                        onClick={() => setShowTOC(!showTOC)}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono hover:bg-white/5 transition-colors cursor-pointer ${
+                          showTOC ? 'text-[#E3B341]' : 'opacity-80'
+                        }`}
+                      >
+                        <List size={14} />
+                        <span>{showTOC ? 'Hide' : 'Show'} Outline</span>
+                      </button>
+                    )}
+
+                    {/* Text size */}
+                    <button
+                      onClick={() => setReaderFontSize(readerFontSize === 'normal' ? 'large' : 'normal')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono opacity-80 hover:opacity-100 hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      <Type size={14} />
+                      <span>Font: {readerFontSize === 'normal' ? '100% → Large' : '125% → Normal'}</span>
+                    </button>
+
+                    {/* Theme */}
+                    <div className="px-4 py-2 flex items-center gap-2">
+                      <span className="text-[10px] font-mono opacity-50 uppercase tracking-widest">Theme</span>
+                      <div className="flex gap-1.5 ml-auto">
+                        {([['dark', '🌙'], ['sepia', '☀️'], ['oled', '⬛']] as const).map(([t, icon]) => (
+                          <button
+                            key={t}
+                            onClick={(e) => { e.stopPropagation(); setReaderTheme(t); }}
+                            className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center transition-all cursor-pointer ${
+                              readerTheme === t ? 'bg-[#E3B341]/30 ring-1 ring-[#E3B341]' : 'opacity-50 hover:opacity-100 hover:bg-white/10'
+                            }`}
+                          >{icon}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-white/10 my-1" />
+
+                    {/* Generate Quiz */}
+                    <button
+                      onClick={handleGenerateQuiz}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono opacity-80 hover:opacity-100 hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      <Wand2 size={14} className="text-[#E3B341]" />
+                      <span>Generate Quiz</span>
+                    </button>
+
+                    {/* Flashcards */}
+                    {onOpenAiGeneratorWithText && (
+                      <button
+                        onClick={() => {
+                          const txt = activeResource.content;
+                          setActiveResource(null);
+                          onOpenAiGeneratorWithText(txt);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono opacity-80 hover:opacity-100 hover:bg-white/5 transition-colors cursor-pointer"
+                      >
+                        <Sparkles size={14} className="text-[#E3B341]" />
+                        <span>Generate Flashcards</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </header>
 
@@ -933,15 +1121,11 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
               </aside>
             )}
 
-            {/* Center Page Container */}
-            <main
-              ref={readerScrollRef}
-              onScroll={handleReaderScroll}
-              className="flex-1 overflow-y-auto p-4 sm:p-10 flex flex-col items-center"
-            >
-              {/* Document Cover Banner — compact slim strip */}
+            {/* Center Page Container — flex-col, non-scrolling shell */}
+            <main className="flex-1 flex flex-col overflow-hidden p-3 sm:p-6 gap-3">
+              {/* Document Cover Banner — compact slim strip, pinned top */}
               <div
-                className="w-full max-w-5xl rounded-xl px-4 py-2 mb-4 border flex items-center gap-3 flex-wrap"
+                className="w-full max-w-5xl mx-auto rounded-xl px-4 py-2 border flex items-center gap-3 flex-wrap flex-shrink-0"
                 style={{
                   background: getSubjectTheme(activeResource.subject).gradient,
                   borderColor: readerThemeStyles.border,
@@ -975,27 +1159,70 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 </div>
               </div>
 
-              {/* Main Document Content (Paginated or Continuous) */}
+              {/* Main Document Content — scrolls internally, fills remaining space */}
               <div
-                className={`w-full max-w-5xl rounded-2xl p-10 sm:p-16 shadow-2xl border mb-6 min-h-[60vh] ${
+                ref={readerScrollRef}
+                onScroll={handleReaderScroll}
+                className={`relative flex-1 min-h-0 overflow-y-auto w-full max-w-5xl mx-auto rounded-2xl p-5 sm:p-10 shadow-2xl border ${
                   readerFontSize === 'large' ? 'text-lg leading-loose' : 'text-base leading-relaxed'
                 }`}
                 style={{
                   background: readerThemeStyles.panelBg,
-                  borderColor: readerThemeStyles.border,
+                  borderColor: showReconstructed && reconstructedPages[`${activeResource.id}__p${currentReaderPage}`]
+                    ? 'rgba(88,166,255,0.35)'
+                    : readerThemeStyles.border,
+                  transition: 'border-color 0.3s',
                 }}
               >
+                {/* AI / Original mode badge */}
+                {(showReconstructed || isReconstructing || isReconstructingAll) && (
+                  <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-mono font-bold uppercase tracking-widest bg-[#58A6FF]/15 border border-[#58A6FF]/40 text-[#58A6FF]">
+                    {isReconstructingAll
+                      ? <><Loader2 size={9} className="animate-spin" /> Rebuilding {reconstructAllProgress.current}/{reconstructAllProgress.total}</>
+                      : isReconstructing
+                      ? <><Loader2 size={9} className="animate-spin" /> AI Rebuilding…</>
+                      : <><Sparkles size={9} /> AI Reconstructed</>
+                    }
+                  </div>
+                )}
+
+                {/* Reconstruct streaming placeholder */}
+                {isReconstructing && reconstructProgress && (
+                  <p className="text-xs font-mono text-[#58A6FF] opacity-70 animate-pulse mb-4">{reconstructProgress}</p>
+                )}
+
+                {/* Bulk reconstruct progress bar */}
+                {isReconstructingAll && reconstructAllProgress.total > 0 && (
+                  <div className="mb-5 space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-[#58A6FF]">
+                      <span className="flex items-center gap-1.5"><Loader2 size={10} className="animate-spin" /> Reconstructing all pages…</span>
+                      <span className="font-bold">{reconstructAllProgress.current} / {reconstructAllProgress.total}</span>
+                    </div>
+                    <div className="h-1.5 bg-[#58A6FF]/15 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#58A6FF] rounded-full transition-all duration-500"
+                        style={{ width: `${(reconstructAllProgress.current / reconstructAllProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="prose-study max-w-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {readerPages[currentReaderPage] || activeResource.content}
+                    {(() => {
+                      const pageKey = `${activeResource.id}__p${currentReaderPage}`;
+                      const reconstructed = reconstructedPages[pageKey];
+                      if (showReconstructed && reconstructed) return reconstructed;
+                      return readerPages[currentReaderPage] || activeResource.content;
+                    })()}
                   </ReactMarkdown>
                 </div>
               </div>
 
-              {/* Reader Page Navigation Controls */}
+              {/* Reader Page Navigation — pinned bottom */}
               {readerPages.length > 1 && (
                 <div
-                  className="w-full max-w-5xl flex items-center justify-between px-5 py-3.5 rounded-xl border mb-16 shadow-lg"
+                  className="w-full max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-5 py-3 rounded-xl border shadow-lg flex-shrink-0"
                   style={{
                     background: readerThemeStyles.panelBg,
                     borderColor: readerThemeStyles.border,

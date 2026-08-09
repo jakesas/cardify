@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Deck, Card, ReviewHistory, ExamDomain } from './types';
 
 import { DeckListScreen } from './components/DeckListScreen';
-import { StudyMaterialScreen } from './components/StudyMaterialScreen';
+import { StudyMaterialScreen, type StudyMaterialScreenHandle } from './components/StudyMaterialScreen';
 import { ReviewScreen } from './components/ReviewScreen';
 import { CardEditorScreen } from './components/CardEditorScreen';
 import { StatsScreen } from './components/StatsScreen';
@@ -21,14 +21,14 @@ import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import { LibraryScreen } from './components/LibraryScreen';
 import logoSrc from '/logo.png';
-import { Database, Activity, LayoutGrid, Sparkles, X, Wand2, Zap, LogOut, AlertTriangle, Search, Globe, Users, BookOpen } from 'lucide-react';
+import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
 import { getDb, setDbUser } from './db/client';
 import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
 import { backupBeforeDestructive, maybeAutoBackup, createBackup, restoreLatestBackup } from './utils/backup';
-import { initializeSync, triggerManualSync } from './utils/syncEngine';
+import { initializeSync } from './utils/syncEngine';
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -41,7 +41,7 @@ function AppInner() {
 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'pending' | 'offline' | 'error'>('synced');
+  const [syncStatus] = useState<'synced' | 'syncing' | 'pending' | 'offline' | 'error'>('synced');
   const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'library' | 'groups' | 'group-detail'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [shareDeckId, setShareDeckId] = useState<string | null>(null);
@@ -137,7 +137,7 @@ function AppInner() {
     setActiveTab(tab as typeof activeTab);
     if (tab === 'group-detail' && parts[1]) {
       setSelectedGroupId(parts[1]);
-    } else if (['study', 'review', 'editor', 'quiz'].includes(tab) && parts[1]) {
+    } else if (['study', 'review', 'editor', 'quiz', 'weak'].includes(tab) && parts[1]) {
       setSelectedDeckId(parts[1]);
     }
   }, [user]);
@@ -154,7 +154,7 @@ function AppInner() {
     let hash = activeTab;
     if (activeTab === 'group-detail' && selectedGroupId) {
       hash += `/${selectedGroupId}`;
-    } else if (['study', 'review', 'editor', 'quiz'].includes(activeTab) && selectedDeckId) {
+    } else if (['study', 'review', 'editor', 'quiz', 'weak'].includes(activeTab) && selectedDeckId) {
       hash += `/${selectedDeckId}`;
     }
     window.location.hash = hash;
@@ -405,12 +405,48 @@ function AppInner() {
     }
   };
 
+  const handleBackupNow = async () => {
+    try {
+      await createBackup('manual');
+      setNotice('Backup created');
+      setError(null);
+    } catch (err) {
+      console.error('Backup failed:', err);
+      setError(err instanceof Error ? err.message : 'Backup failed');
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    try {
+      const result = await restoreLatestBackup();
+      if (result) {
+        await loadAllData();
+        setNotice(`Restored ${result.decks} decks, ${result.cards} cards, ${result.reviews} reviews`);
+        setError(null);
+      } else {
+        setError('No backup found to restore');
+      }
+    } catch (err) {
+      console.error('Restore failed:', err);
+      setError(err instanceof Error ? err.message : 'Restore failed');
+    }
+  };
+
   const handleSelectDeck = (deckId: string, tab: 'study' | 'review' | 'editor' | 'quiz') => {
     setSelectedDeckId(deckId);
     setActiveTab(tab);
   };
 
   const activeDeck = decks.find(d => d.id === selectedDeckId);
+
+  const studyScreenRef = useRef<StudyMaterialScreenHandle>(null);
+  const [studyEditing, setStudyEditing] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'study' && activeDeck) {
+      setStudyEditing(!activeDeck.studyMaterial);
+    }
+  }, [activeTab, activeDeck?.id]);
 
   if (authLoading) {
     return (
@@ -498,12 +534,6 @@ function AppInner() {
               <div className="flex items-center bg-[#161B22] rounded-lg p-0.5 border border-[#2D333B] gap-0.5">
                 {[
                   { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
-                  ...(activeDeck ? [
-                    { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
-                    { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
-                    { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
-                    { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
-                  ] : []),
                   { key: 'search', icon: Search, label: 'Search', onClick: () => setActiveTab('search') },
                   { key: 'library', icon: BookOpen, label: 'Library', onClick: () => setActiveTab('library') },
                   { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
@@ -557,15 +587,77 @@ function AppInner() {
           </div>
         </header>
 
+        {/* Deck-scoped secondary tab bar — visible only while inside a deck, hidden on global tabs */}
+        {activeDeck && ['study', 'review', 'editor', 'quiz', 'weak'].includes(activeTab) && (
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-0 -mt-1 mb-3 pb-2 border-b border-[#2D333B]/50">
+            <nav className="flex items-center gap-0.5 overflow-x-auto scrollbar-none w-full md:w-auto" aria-label="Deck actions">
+              {[
+                { key: 'study', icon: BookOpen, label: 'Study', onClick: () => setActiveTab('study') },
+                { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
+                { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
+                { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
+                { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
+              ].map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={item.onClick}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'text-white bg-[#0F1115] shadow-sm border border-[#2D333B]'
+                        : 'text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-transparent'
+                    }`}
+                  >
+                    <Icon size={13} className={isActive ? 'text-[#E3B341]' : ''} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            {activeTab === 'study' && (
+              <div className="flex items-center gap-2 md:ml-auto flex-shrink-0 md:sticky md:right-0 bg-[#0F1115] md:shadow-[-8px_0_16px_rgba(15,17,21,0.95)] md:pl-2 w-full md:w-auto">
+                {!studyEditing ? (
+                  <button
+                    onClick={() => setStudyEditing(true)}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-[#30363D]"
+                  >
+                    <Edit3 size={13} />
+                    <span>Edit Material</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => studyScreenRef.current?.save()}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115]"
+                  >
+                    <Save size={13} />
+                    <span>Save</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setActiveTab('review')}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#0F1115]"
+                  style={{
+                    background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
+                    boxShadow: '0 0 12px rgba(227,179,65,.35)',
+                  }}
+                >
+                  <Zap size={13} />
+                  <span>Start Flashcards</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Mobile bottom tab bar */}
         <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#0F1115] border-t border-[#2D333B] flex items-center justify-around px-2 py-1.5 safe-area-bottom">
           {[
             { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
             { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
             { key: 'ai', icon: Wand2, label: 'AI', centered: true, onClick: () => setActiveTab('ai') },
-            ...(activeDeck ? [
-              { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
-            ] : []),
           ].map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
@@ -615,9 +707,6 @@ function AppInner() {
                 <div className="fixed inset-0 z-40" onClick={() => setShowMobileMenu(false)} />
                 <div className="absolute bottom-full right-0 mb-2 z-50 w-48 rounded border border-[#2D333B] bg-[#161B22] shadow-2xl overflow-hidden">
                   {[
-                    ...(activeDeck ? [
-                      { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => { setActiveTab('weak'); setShowMobileMenu(false); } },
-                    ] : []),
                     { key: 'groups', icon: Users, label: 'Groups', onClick: () => { setActiveTab('groups'); setShowMobileMenu(false); } },
                     { key: 'library', icon: BookOpen, label: 'Library', onClick: () => { setActiveTab('library'); setShowMobileMenu(false); } },
                     { key: 'stats', icon: Sparkles, label: 'Stats', onClick: () => { setActiveTab('stats'); setShowMobileMenu(false); } },
@@ -653,61 +742,27 @@ function AppInner() {
               decks={decks}
               cards={cards}
               streakDays={streakDays}
+              syncStatus={syncStatus}
+              onBackupNow={handleBackupNow}
+              onRestoreBackup={handleRestoreBackup}
               onSelectDeck={handleSelectDeck}
               onCreateDeck={handleCreateDeck}
               onDeleteDeck={handleDeleteDeck}
               onRenameDeck={handleRenameDeck}
               onResetToDefaults={handleResetToDefaults}
-              onBackupNow={async () => {
-                try {
-                  await createBackup('manual');
-                  setNotice('Backup created');
-                  setError(null);
-                } catch (err) {
-                  console.error('Backup failed:', err);
-                  setError(err instanceof Error ? err.message : 'Backup failed');
-                }
-              }}
-              onRestoreBackup={async () => {
-                try {
-                  const result = await restoreLatestBackup();
-                  if (result) {
-                    await loadAllData();
-                    setNotice(`Restored ${result.decks} decks, ${result.cards} cards, ${result.reviews} reviews`);
-                    setError(null);
-                  } else {
-                    setError('No backup found to restore');
-                  }
-                } catch (err) {
-                  console.error('Restore failed:', err);
-                  setError(err instanceof Error ? err.message : 'Restore failed');
-                }
-              }}
-              onSync={async () => {
-                setSyncStatus('syncing');
-                try {
-                  await triggerManualSync();
-                  setSyncStatus('synced');
-                  setNotice('Synced with cloud');
-                  setError(null);
-                } catch (err) {
-                  console.error('Sync failed:', err);
-                  setSyncStatus('error');
-                  setError(err instanceof Error ? err.message : 'Sync failed');
-                }
-              }}
               onShareDeck={handleShareDeck}
               onShareToGroup={handleShareToGroup}
-              syncStatus={syncStatus}
             />
           )}
 
           {activeTab === 'study' && activeDeck && (
             <StudyMaterialScreen
+              ref={studyScreenRef}
               deck={activeDeck}
               cards={cards.filter(c => c.deckId === activeDeck.id)}
               onGoBack={() => setActiveTab('decks')}
-              onProceedToReview={() => setActiveTab('review')}
+              editing={studyEditing}
+              onEditingChange={setStudyEditing}
               onUpdateDeck={async (id, material) => {
                 const { updateDeckStudyMaterial } = await import('./db/queries');
                 await updateDeckStudyMaterial(id, material);
@@ -747,13 +802,13 @@ function AppInner() {
             />
           )}
 
-          {activeTab === 'weak' && (
+          {activeTab === 'weak' && activeDeck && (
             <WeakSpotsScreen
-              decks={decks}
-              cards={cards}
+              decks={[activeDeck]}
+              cards={cards.filter(c => c.deckId === activeDeck.id)}
               history={history}
               onReviewCard={handleReviewCard}
-              onGoBack={() => setActiveTab('decks')}
+              onGoBack={() => setActiveTab('study')}
             />
           )}
 

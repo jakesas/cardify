@@ -22,7 +22,9 @@ import {
   getAllReviews,
   getSetting,
   setSetting,
-  createDeck,
+  syncDeck,
+  syncCard,
+  syncReview,
 } from '../db/queries';
 import { Deck, Card, ReviewHistory } from '../types';
 import {
@@ -30,6 +32,7 @@ import {
   toFirestoreCard,
   toFirestoreReview,
   fromFirestoreDeck,
+  fromFirestoreCard,
   serialize,
   SYNC_COLLECTIONS,
   SyncState,
@@ -195,36 +198,47 @@ async function pullRemoteChanges(uid: string): Promise<void> {
   const syncStateDoc = await getDoc(cols.syncState);
   const lastSync = syncStateDoc.exists() ? syncStateDoc.data()?.lastIncrementalSyncAt : null;
   const lastSyncTime = lastSync ? new Date(lastSync).getTime() : 0;
+  // Firestore timestamp for the query (fallback to early date if no full sync)
+  const queryDate = lastSync ? new Date(lastSyncTime).toISOString() : new Date(0).toISOString();
 
-  // Pull decks updated since last sync
-  const decksQuery = query(
-    cols.decks,
-    where('updatedAt', '>', new Date(lastSyncTime).toISOString())
-  );
+  // 1. Pull Decks
+  const decksQuery = query(cols.decks, where('updatedAt', '>', queryDate));
   const decksSnap = await getDocs(decksQuery);
   for (const docSnap of decksSnap.docs) {
     const remote = docSnap.data() as any;
-    const localDecks = await listDecks();
-    const local = localDecks.find(d => d.id === docSnap.id);
-
-    if (!local) {
-      // New deck from remote - create locally
-      const deck = fromFirestoreDeck(remote);
-      await createDeck(deck.name, deck.description);
-      // Note: created deck gets new ID, need to handle ID mapping
-      // For simplicity, we'll use the remote ID if possible
-    } else {
-      const localUpdated = new Date(local.updatedAt || local.createdAt).getTime();
-      const remoteUpdated = new Date(remote.updatedAt).getTime();
-      if (remoteUpdated > localUpdated) {
-        // Remote is newer - update local
-        // Need to implement updateDeck in queries
-      }
-    }
+    const deck = fromFirestoreDeck(remote);
+    // syncDeck acts as an upsert based on ID
+    await syncDeck(deck);
   }
 
-  // Similar for cards and reviews...
-  // (Implementation continues for cards and reviews)
+  // 2. Pull Cards
+  const cardsQuery = query(cols.cards, where('updatedAt', '>', queryDate));
+  const cardsSnap = await getDocs(cardsQuery);
+  for (const docSnap of cardsSnap.docs) {
+    const remote = docSnap.data() as any;
+    // skip cards linking to decks we don't have
+    const card = fromFirestoreCard(remote);
+    await syncCard(card);
+  }
+
+  // 3. Pull Reviews
+  // Note: we fetch reviews based on timestamp instead of updatedAt
+  const reviewsQuery = query(cols.reviews, where('timestamp', '>', queryDate));
+  const reviewsSnap = await getDocs(reviewsQuery);
+  for (const docSnap of reviewsSnap.docs) {
+    const remote = docSnap.data() as any;
+    const review = {
+      id: docSnap.id,
+      cardId: String(remote.cardId),
+      rating: remote.rating,
+      timestamp: remote.timestamp,
+      previousInterval: remote.previousInterval,
+      nextInterval: remote.nextInterval,
+      previousEaseFactor: remote.previousEaseFactor,
+      nextEaseFactor: remote.nextEaseFactor,
+    };
+    await syncReview(review);
+  }
 }
 
 // Update sync state in Firestore

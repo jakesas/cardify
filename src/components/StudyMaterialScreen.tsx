@@ -1,8 +1,8 @@
-import { useState, useMemo, useRef, useEffect, useCallback, type FC } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, type FC } from 'react';
 import { Deck, Card } from '../types';
 import {
-  ArrowLeft, Edit3, Save, BookOpen, Play, ChevronLeft, ChevronRight,
-  Timer, Pause, RotateCcw, Clock, Zap,
+  ArrowLeft, Edit3, BookOpen, Play, ChevronLeft, ChevronRight,
+  Timer, Pause, RotateCcw, Clock,
   Bold, Italic, Code, Minus, List, Quote, Heading1, Heading2, Heading3, Sparkles,
   Wand2, Loader2,
 } from 'lucide-react';
@@ -11,11 +11,16 @@ import remarkGfm from 'remark-gfm';
 import { generateStudyMaterialFromCards } from '../utils/generateStudyMaterial';
 import { createGroqClient, getAiConfig, structureStudyMaterial } from '../utils/groq';
 
+export interface StudyMaterialScreenHandle {
+  save: () => void;
+}
+
 interface StudyMaterialScreenProps {
   deck: Deck;
   cards: Card[];
   onGoBack: () => void;
-  onProceedToReview: () => void;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
   onUpdateDeck: (deckId: string, studyMaterial: string) => Promise<void>;
 }
 
@@ -109,16 +114,16 @@ const PomodoroRing: FC<{ seconds: number; total: number; phase: 'focus' | 'break
   );
 };
 
-export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
+export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMaterialScreenProps>(function StudyMaterialScreen({
   deck,
   cards,
   onGoBack,
-  onProceedToReview,
+  editing,
+  onEditingChange,
   onUpdateDeck,
-}) => {
-  const [isEditing, setIsEditing] = useState(!deck.studyMaterial);
+}, ref) {
   const [material, setMaterial] = useState(deck.studyMaterial || '');
-  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageDir, setPageDir] = useState<'next' | 'prev'>('next');
   const [isAnimating, setIsAnimating] = useState(false);
@@ -246,28 +251,33 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
 
   /** Keyboard ← → navigation */
   useEffect(() => {
-    if (isEditing) return;
+    if (editing) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') goToNextPage();
       if (e.key === 'ArrowLeft') goToPrevPage();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isEditing, currentPage, totalPages, isAnimating]);
+  }, [editing, currentPage, totalPages, isAnimating]);
 
   const handleSave = async () => {
-    setIsSaving(true);
+    if (savingRef.current) return;
+    savingRef.current = true;
     try {
       await onUpdateDeck(deck.id, material);
-      setIsEditing(false);
+      onEditingChange(false);
       setCurrentPage(0);
     } catch (err) {
       console.error('Failed to save study material', err);
       alert('Failed to save study material.');
     } finally {
-      setIsSaving(false);
+      savingRef.current = false;
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    save: handleSave,
+  }));
 
   const handleReconstruct = async () => {
     const original = material;
@@ -404,9 +414,9 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
         }
       `}</style>
 
-      <div className="animate-fade-in max-w-3xl mx-auto space-y-4" ref={contentRef}>
+      <div className="animate-fade-in max-w-3xl w-full mx-auto flex flex-col space-y-4 h-[calc(100dvh-290px)] md:h-[calc(100vh-190px)]" ref={contentRef}>
         {/* ── Header ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={onGoBack}
@@ -429,43 +439,11 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[10px] font-semibold tracking-wider uppercase rounded-lg border border-[#30363D] transition-all cursor-pointer"
-              >
-                <Edit3 size={11} />
-                <span>Edit</span>
-              </button>
-            ) : (
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115] disabled:opacity-50 text-[10px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer"
-              >
-                <Save size={11} />
-                <span>{isSaving ? 'Saving…' : 'Save'}</span>
-              </button>
-            )}
-
-            <button
-              onClick={onProceedToReview}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer text-[#0F1115]"
-              style={{
-                background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
-                boxShadow: '0 0 12px rgba(227,179,65,.35)',
-              }}
-            >
-              <Zap size={11} />
-              <span>Start Flashcards</span>
-            </button>
           </div>
-        </div>
 
         {/* ── Progress bar (reading progress) ── */}
-        {!isEditing && totalPages > 1 && (
-          <div className="relative h-1 bg-[#2D333B] rounded-full overflow-hidden">
+        {!editing && totalPages > 1 && (
+          <div className="relative h-1 bg-[#2D333B] rounded-full overflow-hidden flex-shrink-0">
             <div
               className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
               style={{
@@ -479,7 +457,7 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
 
         {/* ── Pomodoro Timer ── */}
         <div
-          className="flex items-center gap-4 px-4 py-3 rounded-xl border"
+          className="flex items-center gap-4 px-4 py-3 rounded-xl border flex-shrink-0"
           style={{
             background: 'linear-gradient(135deg, #161B22 0%, #12161C 100%)',
             borderColor: pomodoroActive
@@ -547,15 +525,14 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
 
         {/* ── Main Content Card ── */}
         <div
-          className="rounded-2xl border overflow-hidden flex flex-col"
+          className="rounded-2xl border overflow-hidden flex flex-col flex-1 min-h-0"
           style={{
             background: 'linear-gradient(160deg, #161B22 0%, #12161C 100%)',
             borderColor: '#2D333B',
             boxShadow: '0 4px 32px rgba(0,0,0,.4)',
-            minHeight: '58vh',
           }}
         >
-          {isEditing ? (
+          {editing ? (
             /* ── Editor Mode ── */
             <div className="flex-grow flex flex-col">
 
@@ -784,7 +761,7 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
                 </p>
               </div>
               <button
-                onClick={() => setIsEditing(true)}
+                onClick={() => onEditingChange(true)}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition-all cursor-pointer"
                 style={{
                   background: 'linear-gradient(135deg, #E3B341, #F0C24F)',
@@ -800,7 +777,7 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
         </div>
 
         {/* ── Keyboard hint ── */}
-        {!isEditing && totalPages > 1 && (
+        {!editing && totalPages > 1 && (
           <p className="text-center text-[9px] font-mono text-[#484F58] tracking-wider">
             Use <kbd className="px-1 py-0.5 bg-[#21262D] border border-[#30363D] rounded text-[8px]">←</kbd> / <kbd className="px-1 py-0.5 bg-[#21262D] border border-[#30363D] rounded text-[8px]">→</kbd> arrow keys to navigate pages
           </p>
@@ -808,4 +785,4 @@ export const StudyMaterialScreen: FC<StudyMaterialScreenProps> = ({
       </div>
     </>
   );
-};
+});

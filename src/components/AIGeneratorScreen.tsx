@@ -38,6 +38,38 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docxInputRef = useRef<HTMLInputElement>(null);
 
+  const AI_DRAFT_KEY = 'cardify_ai_draft';
+
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AI_DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.generatedCards?.length > 0) {
+        setGeneratedCards(draft.generatedCards);
+        setGeneratedTitle(draft.generatedTitle || '');
+        setSourceText(draft.sourceText || '');
+        setSelectedDeckId(draft.selectedDeckId || '');
+        setStep('review');
+      }
+    } catch { /* corrupt draft — ignore */ }
+  }, []);
+
+  // Auto-save draft whenever cards or key state changes
+  useEffect(() => {
+    if (generatedCards.length === 0) return; // nothing to save
+    try {
+      localStorage.setItem(AI_DRAFT_KEY, JSON.stringify({
+        generatedCards,
+        generatedTitle,
+        sourceText,
+        selectedDeckId,
+        step,
+      }));
+    } catch { /* storage quota — ignore */ }
+  }, [generatedCards, generatedTitle, sourceText, selectedDeckId, step]);
+
   const tokenLogRef = useRef<Array<{ tokens: number; ts: number }>>([]);
   const accumulatedCardsRef = useRef<GeneratedCard[]>([]);
 
@@ -333,6 +365,8 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
     } catch (e) {
       console.error('Failed to save generate session:', e);
     }
+    // Clear the draft now that cards are saved
+    try { localStorage.removeItem(AI_DRAFT_KEY); } catch { /* ignore */ }
   };
 
   const updateCardTag = (index: number, tag: string) => {
@@ -353,6 +387,8 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
     setChunkIndex(0);
     setChunkTotal(0);
     setProcessingPhase('connecting');
+    // Clear saved draft when user explicitly resets
+    try { localStorage.removeItem(AI_DRAFT_KEY); } catch { /* ignore */ }
   };
 
   const handleRestoreClean = (_inputText: string, outputText: string) => {
@@ -710,9 +746,9 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
 
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {generatedCards.map((card, idx) => (
-              <div key={idx} className="p-3 rounded border border-[#2D333B] bg-[#161B22] hover:border-[#30363D] transition-colors">
+              <div key={idx} className="p-3 rounded border border-[#2D333B] bg-[#161B22] hover:border-[#30363D] transition-colors overflow-hidden">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-grow space-y-2">
+                  <div className="flex-grow min-w-0 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] font-mono font-bold text-[#8B949E]">#{idx + 1}</span>
                       <input
@@ -723,10 +759,10 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                         className="px-1.5 py-0.5 rounded border border-[#30363D] bg-[#0D1117] text-[#8B949E] text-[8px] font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600 w-24"
                       />
                     </div>
-                    <p className="text-xs font-bold text-white font-mono leading-relaxed">{card.front}</p>
-                    <p className="text-[11px] text-[#8B949E] font-mono leading-relaxed whitespace-pre-line">{card.back}</p>
+                    <p className="text-xs font-bold text-white font-mono leading-relaxed break-words overflow-wrap-anywhere">{card.front}</p>
+                    <p className="text-[11px] text-[#8B949E] font-mono leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{card.back}</p>
                     {card.codeSnippet && (
-                      <pre className="text-[10px] font-mono text-[#388BFD] bg-[#0D1117] p-2 rounded border border-[#30363D] overflow-x-auto">
+                      <pre className="text-[10px] font-mono text-[#388BFD] bg-[#0D1117] p-2 rounded border border-[#30363D] overflow-x-auto max-w-full whitespace-pre-wrap break-all">
                         {card.codeSnippet.code}
                       </pre>
                     )}

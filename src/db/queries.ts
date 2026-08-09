@@ -255,6 +255,65 @@ export async function importDeckFromJson(json: string): Promise<void> {
   }
 }
 
+// ─── Sync Functions ────────────────────────────────────────────────────────────
+
+export async function syncDeck(deck: Deck): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO decks (id, name, description, study_material, created_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, study_material=excluded.study_material`,
+    [Number(deck.id), deck.name, deck.description ?? null, deck.studyMaterial ?? null, deck.createdAt]
+  );
+}
+
+export async function syncCard(card: Card): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO cards (id, deck_id, card_type, front, back, tag, image_path, code_snippet, topology, bookmarked, ease_factor, interval_days, reps, due_date, last_reviewed_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET deck_id=excluded.deck_id, card_type=excluded.card_type, front=excluded.front, back=excluded.back, tag=excluded.tag, image_path=excluded.image_path, code_snippet=excluded.code_snippet, topology=excluded.topology, bookmarked=excluded.bookmarked, ease_factor=excluded.ease_factor, interval_days=excluded.interval_days, reps=excluded.reps, due_date=excluded.due_date, last_reviewed_at=excluded.last_reviewed_at, updated_at=excluded.updated_at`,
+    [
+      Number(card.id),
+      Number(card.deckId),
+      card.cardType ?? 'basic',
+      card.front,
+      card.back,
+      card.tag,
+      card.imagePath ?? null,
+      card.codeSnippet ? JSON.stringify(card.codeSnippet) : null,
+      card.topology ? JSON.stringify(card.topology) : null,
+      card.bookmarked ? 1 : 0,
+      card.easeFactor,
+      card.interval,
+      card.reps,
+      card.dueDate,
+      card.lastReviewedAt ?? null,
+      card.createdAt,
+      card.updatedAt
+    ]
+  );
+}
+
+export async function syncReview(review: ReviewHistory): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO reviews (id, card_id, rating, reviewed_at, prev_interval, new_interval, prev_ease, new_ease)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO NOTHING`,
+    [
+      Number(review.id),
+      Number(review.cardId),
+      review.rating,
+      review.timestamp,
+      review.previousInterval,
+      review.nextInterval,
+      review.previousEaseFactor,
+      review.nextEaseFactor
+    ]
+  );
+}
+
 export async function getSetting(key: string): Promise<string | null> {
   const db = await getDb();
   const rows = await db.select<{value: string}[]>('SELECT value FROM settings WHERE key = ?', [key]);
