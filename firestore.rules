@@ -27,6 +27,50 @@ service cloud.firestore {
       }
     }
 
+    // ---- Public Study Library ----
+    // Public read; authenticated users publish; authors manage their own docs.
+    // Non-owners may only bump views/imports counters (not edit content).
+    match /library-resources/{docId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.authorId == request.auth.uid;
+      allow update: if request.auth != null
+        && (resource.data.authorId == request.auth.uid
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['views', 'importsCount']));
+      allow delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+    }
+
+    // ---- Community shared decks ----
+    // Public browsing; authors own their uploads; anyone bumps the download count.
+    match /shared-decks/{deckId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.authorId == request.auth.uid;
+      allow update: if request.auth != null
+        && (resource.data.authorId == request.auth.uid
+            || request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['downloads']));
+      allow delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+    }
+
+    // ---- Study Groups ----
+    // Logged-in users can join and participate; creator owns the group document.
+    match /groups/{groupId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
+    }
+    match /group-members/{memberId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null
+        && (resource.data.userId == request.auth.uid
+            || resource.data.role == 'admin');
+    }
+    match /group-decks/{deckId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

@@ -545,6 +545,121 @@ FORMATTING REQUIREMENTS (follow every one):
   return fullContent.trim();
 }
 
+export async function summarizeDocument(
+  client: Groq,
+  content: string,
+  title: string,
+): Promise<{ summary: string; topics: string[] }> {
+  const safeText = truncateToTokenBudget(content, 2200);
+
+  const requestBody = {
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      {
+        role: 'system' as const,
+        content: `You are a study librarian curating a public library catalog. Given one study document, produce a short AI catalog card.
+
+OUTPUT FORMAT: Output ONLY valid JSON with this exact shape:
+{
+  "summary": "1-2 sentences describing what this document teaches, written in the third person, concise and concrete.",
+  "topics": ["up to 5 short topic keywords covered, e.g. \"OSI Model\", \"Subnetting\", \"TCP/IP\""]
+}
+
+RULES:
+- The summary must be grounded ONLY in the document content. Do not invent facts.
+- Keep the summary under 40 words.
+- Topics must be 1-3 words each.
+- Output ONLY raw JSON. No markdown wrapping. No intro text.`
+      },
+      {
+        role: 'user' as const,
+        content: `Document title: ${title}\n\nDocument content:\n${safeText}`
+      }
+    ],
+    temperature: 0.2,
+    max_tokens: 300,
+    response_format: { type: 'json_object' as const },
+  };
+
+  const response = IS_PROXY
+    ? await proxyRequest(requestBody)
+    : await client.chat.completions.create(requestBody);
+
+  const fullContent = response.choices[0]?.message?.content || '';
+  if (!fullContent.trim()) throw new Error('AI summary returned empty output.');
+
+  let cleaned = fullContent.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  const fallbackIdx = cleaned.indexOf('{');
+  if (fallbackIdx > 0) cleaned = cleaned.slice(fallbackIdx);
+
+  let parsed: { summary?: string; topics?: string[] } = {};
+  try { parsed = JSON.parse(cleaned); } catch {
+    const firstLine = cleaned.split('\n')[0] || 'Study document';
+    return { summary: firstLine, topics: [] };
+  }
+
+  return {
+    summary: (parsed.summary || '').trim() || 'Study document',
+    topics: Array.isArray(parsed.topics) ? parsed.topics.slice(0, 5).filter((t: unknown) => typeof t === 'string') : [],
+  };
+}
+
+export interface LibraryCatalogEntry {
+  id: string;
+  title: string;
+  subject: string;
+  description: string;
+  tags: string[];
+  authorName?: string;
+}
+
+export async function askLibrarian(
+  client: Groq,
+  question: string,
+  catalog: LibraryCatalogEntry[],
+  onChunk?: (text: string) => void
+): Promise<string> {
+  const catalogText = catalog
+    .map((r, i) => `${i + 1}. [${r.subject}] ${r.title}${r.description ? ` — ${r.description}` : ''}${r.tags.length ? ` (tags: ${r.tags.join(', ')})` : ''}`)
+    .join('\n');
+
+  const body = {
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      {
+        role: 'system' as const,
+        content: `You are the AI librarian for a public study library covering IT, networking, computer science, and related subjects. Use the catalog below to answer student questions.
+
+BEHAVIOR:
+- Recommend specific documents from the catalog by citing their exact title when the question asks for material on a concept or topic.
+- If nothing in the catalog matches, say so honestly and suggest what the library could use.
+- Keep answers conversational, concise, and study-focused (2-6 sentences). Use a short markdown list when recommending multiple documents.
+- Never invent documents that are not in the catalog.`
+      },
+      {
+        role: 'user' as const,
+        content: `LIBRARY CATALOG:\n${catalogText || '(the library is currently empty)'}\n\nSTUDENT QUESTION: ${question}`
+      }
+    ],
+    temperature: 0.3,
+    max_tokens: 600,
+    stream: true as const,
+  };
+
+  if (IS_PROXY) {
+    return proxyStreamRequest(body, onChunk);
+  }
+
+  const stream = await client.chat.completions.create(body);
+  let fullContent = '';
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content || '';
+    fullContent += delta;
+    onChunk?.(fullContent);
+  }
+  return fullContent.trim();
+}
+
 function resizeImage(file: File, maxDim = 1600): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();

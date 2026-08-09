@@ -18,10 +18,14 @@ import {
   BookOpen, Search, Upload, Eye, FileText, Trash2, ArrowLeft,
   Sparkles, Clock, Tag, Check, AlertCircle, Loader2, ChevronRight, ChevronLeft,
   BookmarkPlus, Globe, List, Type, Sun, Moon, Maximize2, Share2, Layers, Wand2, X,
+  Bot, Send,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { generateQuizFromText, type QuizQuestion, getAiConfig, createGroqClient } from '../utils/groq';
+import {
+  generateQuizFromText, type QuizQuestion, getAiConfig, createGroqClient,
+  summarizeDocument, askLibrarian, type LibraryCatalogEntry,
+} from '../utils/groq';
 
 interface LibraryScreenProps {
   decks: Deck[];
@@ -129,6 +133,18 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const readerScrollRef = useRef<HTMLDivElement>(null);
+
+  // AI Catalog Summaries (per-resource, cached in memory for the session)
+  const [aiSummaries, setAiSummaries] = useState<Record<string, { summary: string; topics: string[] }>>({});
+  const [summarizingIds, setSummarizingIds] = useState<Set<string>>(new Set());
+  const summaryQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  // AI Librarian Chat
+  const [showLibrarian, setShowLibrarian] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatThinking, setChatThinking] = useState(false);
+  const [chatError, setChatError] = useState('');
 
   // Fetch public library list
   const fetchLibrary = async () => {
@@ -400,6 +416,91 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     }
   };
 
+  // AI Catalog Summary — serialized so free-tier TPM limits are never blown.
+  const ensureSummary = (meta: LibraryResourceMeta) => {
+    if (aiSummaries[meta.id] || summarizingIds.has(meta.id)) return;
+    setSummarizingIds(prev => new Set(prev).add(meta.id));
+
+    summaryQueueRef.current = summaryQueueRef.current.then(async () => {
+      const aiConfig = getAiConfig();
+      try {
+        let content = '';
+        if (aiConfig) {
+          const demoFound = DEMO_LIBRARY_RESOURCES.find(d => d.id === meta.id);
+          if (demoFound) {
+            content = demoFound.content;
+          } else {
+            const res = await getLibraryResource(meta.id);
+            content = res.success && res.data ? res.data.content : '';
+          }
+          if (content.trim()) {
+            const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
+            const { summary, topics } = await summarizeDocument(client, content, meta.title);
+            setAiSummaries(prev => ({ ...prev, [meta.id]: { summary, topics } }));
+          }
+        }
+      } catch {
+        // Non-fatal: cards simply render without an AI summary.
+      } finally {
+        setSummarizingIds(prev => {
+          const next = new Set(prev);
+          next.delete(meta.id);
+          return next;
+        });
+      }
+    });
+  };
+
+  // Ask the AI librarian — answer grounded in the library catalog.
+  const handleLibrarianSend = async () => {
+    const question = chatInput.trim();
+    if (!question || chatThinking) return;
+
+    const aiConfig = getAiConfig();
+    if (!aiConfig) {
+      setChatError('AI librarian unavailable — API key not configured');
+      return;
+    }
+
+    setChatMessages(prev => [...prev, { role: 'user', text: question }]);
+    setChatInput('');
+    setChatError('');
+    setChatThinking(true);
+
+    const catalog: LibraryCatalogEntry[] = resources.map(r => ({
+      id: r.id,
+      title: r.title,
+      subject: r.subject,
+      description: r.description,
+      tags: r.tags,
+      authorName: r.authorName,
+    }));
+
+    try {
+      const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
+      setChatMessages(prev => [...prev, { role: 'ai', text: '' }]);
+      const rebuilt = await askLibrarian(client, question, catalog, (chunk) => {
+        setChatMessages(prev => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === 'ai') next[next.length - 1] = { role: 'ai', text: chunk };
+          return next;
+        });
+      });
+      setChatMessages(prev => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last && last.role === 'ai') next[next.length - 1] = { role: 'ai', text: rebuilt };
+        return next;
+      });
+    } catch (err: any) {
+      setChatError(err instanceof Error ? err.message : 'AI librarian failed');
+      setChatMessages(prev => prev.slice(0, -1));
+    } finally {
+      setChatThinking(false);
+    }
+  };
+
   // Theme styles for Reader View
   const readerThemeStyles = {
     dark: { bg: '#0D1117', panelBg: '#161B22', text: '#E0E0E0', border: '#2D333B' },
@@ -442,17 +543,28 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 flex-shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
-              boxShadow: '0 0 20px rgba(227, 179, 65, 0.3)',
-            }}
-          >
-            <Upload size={15} />
-            <span>Upload Document</span>
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowLibrarian(true)}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-[#E3B341] transition-all cursor-pointer border border-[#E3B341]/40 hover:bg-[#E3B341]/10 flex-shrink-0"
+              title="Ask the AI librarian for study help, recommendations, or summaries"
+            >
+              <Bot size={15} />
+              <span>AI Librarian</span>
+            </button>
+
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 flex-shrink-0"
+              style={{
+                background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
+                boxShadow: '0 0 20px rgba(227, 179, 65, 0.3)',
+              }}
+            >
+              <Upload size={15} />
+              <span>Upload Document</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -577,18 +689,47 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                         {item.description}
                       </p>
                     )}
+                    {aiSummaries[item.id] ? (
+                      <p className="text-xs text-[#C9D1D9] leading-relaxed mt-2 line-clamp-3">
+                        {aiSummaries[item.id].summary}
+                      </p>
+                    ) : summarizingIds.has(item.id) ? (
+                      <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#58A6FF] mt-2">
+                        <Loader2 size={10} className="animate-spin" />
+                        <span>AI summarizing…</span>
+                      </div>
+                    ) : (
+                      <div className="mt-2">
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            ensureSummary(item);
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-[#58A6FF] hover:text-[#79C0FF] transition-colors cursor-pointer"
+                          title="Generate AI catalog summary"
+                        >
+                          <Sparkles size={10} />
+                          <span>Summarize with AI</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Tags */}
-                  {item.tags.length > 0 && (
+                  {/* Tags + AI topics */}
+                  {item.tags.length > 0 || (aiSummaries[item.id]?.topics.length ?? 0) > 0 ? (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {item.tags.slice(0, 3).map((t, idx) => (
                         <span key={idx} className="text-[9px] font-mono text-[#8B949E] bg-[#0D1117] px-2 py-0.5 rounded-md border border-[#2D333B]">
                           #{t}
                         </span>
                       ))}
+                      {(aiSummaries[item.id]?.topics ?? []).map((t, idx) => (
+                        <span key={`ai-${idx}`} className="text-[9px] font-mono text-[#58A6FF] bg-[#58A6FF]/10 px-2 py-0.5 rounded-md border border-[#58A6FF]/30">
+                          {t}
+                        </span>
+                      ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Footer metadata */}
@@ -1227,6 +1368,125 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
         </div>
       )}
 
+      {/* ── AI LIBRARIAN CHAT ── */}
+      {showLibrarian && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowLibrarian(false)}>
+          <div
+            className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-[#161B22] border-l border-[#2D333B] shadow-2xl flex flex-col animate-fade-in"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#2D333B] bg-[#0D1117]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#E3B341]/15 border border-[#E3B341]/30">
+                  <Bot size={16} className="text-[#E3B341]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-tight">AI Librarian</h3>
+                  <p className="text-[9px] font-mono text-[#8B949E]">Knows every document in this library</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLibrarian(false)}
+                className="p-1.5 rounded-lg text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                title="Close librarian"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {chatMessages.length === 0 ? (
+                <div className="space-y-4 py-6">
+                  <div className="text-center space-y-2">
+                    <p className="text-xs text-[#8B949E] leading-relaxed">
+                      Ask me anything about this library.<br />
+                      I can recommend documents, summarize material, or point you to the right study path.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      'What documents help with subnetting?',
+                      'Summarize the best networking doc',
+                      'Where do I start studying CCNA?',
+                      'Which document explains the OSI model?',
+                    ].map(q => (
+                      <button
+                        key={q}
+                        onClick={() => setChatInput(q)}
+                        className="w-full text-left px-3 py-2 bg-[#0D1117] border border-[#2D333B] rounded-lg text-[11px] font-mono text-[#8B949E] hover:text-white hover:border-[#E3B341]/50 transition-all cursor-pointer"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                chatMessages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div
+                      className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-xs leading-relaxed whitespace-pre-wrap ${
+                        m.role === 'user'
+                          ? 'bg-[#E3B341] text-[#0F1115] rounded-br-sm font-medium'
+                          : 'bg-[#0D1117] border border-[#2D333B] text-[#E0E0E0] rounded-bl-sm'
+                      }`}
+                    >
+                      {m.role === 'ai' ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text || '…'}</ReactMarkdown> : m.text}
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {chatThinking && chatMessages.length > 0 && (
+                <div className="flex justify-start">
+                  <div className="bg-[#0D1117] border border-[#2D333B] rounded-xl rounded-bl-sm px-3.5 py-2.5 text-[10px] font-mono text-[#8B949E] flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin text-[#E3B341]" />
+                    <span>Librarian is searching the shelves…</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Error */}
+            {chatError && (
+              <div className="mx-4 mb-2 flex items-center justify-between gap-2 px-3 py-2 bg-[#F85149]/10 border border-[#F85149]/30 rounded-lg">
+                <p className="text-[10px] font-mono text-[#F85149]">{chatError}</p>
+                <button onClick={() => setChatError('')} className="text-[9px] font-semibold uppercase tracking-wider text-[#F85149] hover:opacity-70 cursor-pointer">
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Composer */}
+            <div className="p-4 border-t border-[#2D333B] bg-[#0D1117]">
+              <div className="flex items-end gap-2">
+                <textarea
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleLibrarianSend();
+                    }
+                  }}
+                  rows={2}
+                  placeholder="Ask the librarian anything…"
+                  className="flex-1 bg-[#161B22] border border-[#30363D] rounded-lg px-3 py-2.5 text-xs font-mono text-[#E0E0E0] focus:outline-none focus:border-[#E3B341] placeholder-[#484F58] resize-none"
+                />
+                <button
+                  onClick={handleLibrarianSend}
+                  disabled={chatThinking || !chatInput.trim()}
+                  className="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg text-[#0F1115] bg-[#E3B341] hover:bg-[#F0C24F] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Send (Enter)"
+                >
+                  {chatThinking ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
