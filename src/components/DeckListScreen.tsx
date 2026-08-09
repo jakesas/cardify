@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, type FC } from 'react';
+import { useState, useEffect, type FC } from 'react';
 import { Deck, Card } from '../types';
-import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, RotateCcw, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal, HardDrive, RotateCcw as RestoreIcon, Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
+import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal, HardDrive, RotateCcw as RestoreIcon, Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
 
 interface DeckListScreenProps {
@@ -31,7 +31,6 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   onResetToDefaults,
   onBackupNow,
   onRestoreBackup,
-  onSync,
   onShareDeck,
   onShareToGroup,
   syncStatus,
@@ -41,29 +40,11 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   const [newDeckDesc, setNewDeckDesc] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [overflowMenuDeckId, setOverflowMenuDeckId] = useState<string | null>(null);
+  const [dataMenuOpen, setDataMenuOpen] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
   const [renameDeckId, setRenameDeckId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [resetArmed, setResetArmed] = useState(false);
-  const resetArmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleResetClick = () => {
-    if (!resetArmed) {
-      setResetArmed(true);
-      if (resetArmTimer.current) clearTimeout(resetArmTimer.current);
-      resetArmTimer.current = setTimeout(() => setResetArmed(false), 3000);
-      return;
-    }
-    if (resetArmTimer.current) clearTimeout(resetArmTimer.current);
-    setResetArmed(false);
-    onResetToDefaults();
-  };
-
-  // Cleanup the arm timer on unmount
-  useEffect(() => {
-    return () => {
-      if (resetArmTimer.current) clearTimeout(resetArmTimer.current);
-    };
-  }, []);
 
   // Sync status helpers
   function getSyncStatusIcon(status: string) {
@@ -247,78 +228,82 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
             </h1>
           </div>
           
-          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 pt-2">
-            {recommendedDeck ? (
-              <button
-                onClick={() => onSelectDeck(recommendedDeck.id, 'study')}
-                className="inline-flex items-center justify-center gap-1.5 px-3 h-7 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider rounded-md transition-colors cursor-pointer sm:self-start"
-              >
-                <span>Study recommended deck now</span>
-                <ArrowRight size={12} />
-              </button>
-            ) : decks.length > 0 ? (
-              <div className="inline-flex items-center justify-center gap-1.5 h-7 px-2.5 text-[#3FB950] text-[11px] font-mono rounded-md border border-[#30363D] sm:self-start">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse"></span>
-                <span>All cards up to date</span>
-              </div>
-            ) : null}
-
-            {/* Group A — sync/backup/restore (neutral/secondary buttons).
-                Even 2x2 grid on mobile; inline row on desktop. */}
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
-              {/* Sync Status Indicator — click to trigger a manual sync */}
-              <button
-                onClick={onSync}
-                disabled={syncStatus === 'syncing'}
-                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] rounded-md border border-[#30363D] transition-colors cursor-pointer disabled:opacity-60 text-[11px] font-semibold tracking-wider"
-                title={`${getSyncStatusTitle(syncStatus)} (click to sync status)`}>
-                {getSyncStatusIcon(syncStatus)}
-                <span className="font-sans">{getSyncStatusText(syncStatus)}</span>
-              </button>
+          <div className="flex flex-col gap-2 pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {recommendedDeck ? (
+                <button
+                  onClick={() => onSelectDeck(recommendedDeck.id, 'study')}
+                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:min-w-[340px] h-10 px-5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-sm font-bold tracking-wide rounded-lg shadow-[0_0_24px_rgba(227,179,65,0.25)] transition-all cursor-pointer"
+                >
+                  <span>Study recommended deck now</span>
+                  <ArrowRight size={16} />
+                </button>
+              ) : decks.length > 0 ? (
+                <div className="inline-flex items-center justify-center gap-1.5 h-8 px-3 w-full sm:w-auto text-[#3FB950] text-[11px] font-mono rounded-md border border-[#30363D]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse"></span>
+                  <span>All cards up to date</span>
+                </div>
+              ) : null}
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 h-8 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
               >
                 <Plus size={12} />
                 <span>Create deck</span>
               </button>
 
-              <button
-                onClick={onBackupNow}
-                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#3FB950] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
-                title="Backup all data now"
-              >
-                <HardDrive size={12} />
-                <span>Backup now</span>
-              </button>
+              <div className="relative ml-auto">
+                <button
+                  onClick={() => setDataMenuOpen(open => !open)}
+                  className="flex items-center justify-center gap-1.5 px-2.5 h-8 text-[#8B949E] hover:text-white hover:bg-[#21262D] rounded-md border border-[#30363D] transition-colors cursor-pointer"
+                  title="Manage data"
+                >
+                  <MoreHorizontal size={14} />
+                  <span className="hidden sm:inline text-[10px] font-mono font-semibold uppercase tracking-wider">Manage data</span>
+                </button>
 
-              <button
-                onClick={onRestoreBackup}
-                className="inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 bg-[#21262D] hover:bg-[#30363D] text-[#E3B341] text-[11px] font-semibold tracking-wider rounded-md border border-[#30363D] transition-colors cursor-pointer"
-                title="Restore from last backup"
-              >
-                <RestoreIcon size={12} />
-                <span>Restore</span>
-              </button>
+                {dataMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setDataMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-50 w-52 rounded border border-[#2D333B] bg-[#161B22] shadow-2xl overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono text-[#8B949E]">
+                        {getSyncStatusIcon(syncStatus)}
+                        <span className="truncate" title={getSyncStatusTitle(syncStatus)}>
+                          {getSyncStatusText(syncStatus)}
+                        </span>
+                      </div>
+                      <div className="h-px bg-[#2D333B]" />
+                      <button
+                        onClick={() => { onBackupNow(); setDataMenuOpen(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                        title="Backup all data now"
+                      >
+                        <HardDrive size={13} className="text-[#3FB950]" />
+                        <span>Backup now</span>
+                      </button>
+                      <button
+                        onClick={() => { onRestoreBackup(); setDataMenuOpen(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                        title="Restore from last backup"
+                      >
+                        <RestoreIcon size={13} className="text-[#E3B341]" />
+                        <span>Restore</span>
+                      </button>
+                      <div className="h-px bg-[#2D333B]" />
+                      <button
+                        onClick={() => { setDataMenuOpen(false); setResetConfirmText(''); setShowResetDialog(true); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#F85149] hover:bg-[#F85149]/10 transition-colors cursor-pointer"
+                        title="Reset all data"
+                      >
+                        <AlertTriangle size={13} />
+                        <span>Flush & reset decks</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-
-            {/* Vertical separator — separates neutral group from destructive action */}
-            <div className="hidden sm:block w-px h-4 bg-[#30363D] self-center" />
-
-            {/* Group B — destructive (Flush & reset) with inline two-step confirm */}
-            <button
-              onClick={handleResetClick}
-              title="Reset all data"
-              className={`inline-flex items-center justify-center gap-1.5 px-[0.6875rem] h-7 text-[11px] font-semibold tracking-wider rounded-md border transition-colors cursor-pointer w-full sm:w-auto ${
-                resetArmed
-                  ? 'bg-[#F85149]/25 border-[#F85149] text-[#F85149] hover:bg-[#F85149]/30'
-                  : 'bg-[#F85149]/10 border-[#F85149]/30 text-[#F85149] hover:bg-[#F85149]/20'
-              }`}
-            >
-              <RotateCcw size={12} />
-              <span>{resetArmed ? 'Confirm reset?' : 'Flush & reset decks'}</span>
-            </button>
           </div>
         </div>
       </div>
@@ -655,6 +640,52 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showResetDialog && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#161B22] border border-[#2D333B] rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle size={18} className="text-[#F85149] shrink-0" />
+                <h3 className="text-sm font-bold text-white font-mono">Flush & reset decks</h3>
+              </div>
+              <p className="text-xs text-[#8B949E] leading-relaxed mb-4">
+                This will erase all deck progress, cards, and statistics. This action cannot be undone.
+                Type <span className="text-[#F85149] font-mono font-bold">RESET</span> to confirm.
+              </p>
+              <input
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && resetConfirmText.trim().toUpperCase() === 'RESET') {
+                    onResetToDefaults();
+                    setShowResetDialog(false);
+                    setResetConfirmText('');
+                  }
+                }}
+                placeholder="Type RESET to confirm"
+                className="w-full px-3 py-2 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-sm font-mono focus:outline-none focus:border-[#F85149] placeholder-slate-600"
+                autoFocus
+              />
+              <div className="flex justify-end space-x-2 pt-4">
+                <button
+                  onClick={() => { setShowResetDialog(false); setResetConfirmText(''); }}
+                  className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#8B949E] hover:text-white rounded hover:bg-[#21262D] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { onResetToDefaults(); setShowResetDialog(false); setResetConfirmText(''); }}
+                  disabled={resetConfirmText.trim().toUpperCase() !== 'RESET'}
+                  className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-[#F85149] text-white hover:bg-[#FF6B62] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  Erase All Data
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
