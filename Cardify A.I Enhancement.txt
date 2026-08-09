@@ -1,0 +1,9 @@
+Cardify A.I Enhancement 
+Shared Decks Section (When Clicking the Share A Deck the Modal Should Pop-up only instead of drop down)
+
+A.I Flashcard Generator Section (Remove OCR All functions Including UI, Rename Groq Into Cardify A.I)
+
+Group Section (Add Message Successfully Import Check you Decks, Real time doesn't need to refresh the page )
+
+Library Section (Remove Most Viewed, Most Imported, Newest First Instead Put it on the Card it self  and then the Filter Putting it on the top bar Drop down, Search Combine with Upload Documents)
+

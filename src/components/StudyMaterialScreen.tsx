@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, forwardRef, useImper
 import { Deck, Card } from '../types';
 import {
   ArrowLeft, Edit3, BookOpen, Play, ChevronLeft, ChevronRight,
-  Timer, Pause, RotateCcw, Clock,
+  Pause, RotateCcw, Clock,
   Bold, Italic, Code, Minus, List, Quote, Heading1, Heading2, Heading3, Sparkles,
   Wand2, Loader2,
 } from 'lucide-react';
@@ -77,7 +77,7 @@ const ToolbarBtn: FC<{ title: string; onClick: () => void; children: React.React
 const PomodoroRing: FC<{ seconds: number; total: number; phase: 'focus' | 'break'; active: boolean }> = ({
   seconds, total, phase, active,
 }) => {
-  const R = 28;
+  const R = 13;
   const C = 2 * Math.PI * R;
   const progress = seconds / total;
   const dash = C * progress;
@@ -86,28 +86,28 @@ const PomodoroRing: FC<{ seconds: number; total: number; phase: 'focus' | 'break
   const color = phase === 'focus' ? focusColor : breakColor;
 
   return (
-    <svg width="72" height="72" viewBox="0 0 72 72" className="drop-shadow-lg">
+    <svg width="34" height="34" viewBox="0 0 34 34" className="drop-shadow">
       {/* Background track */}
-      <circle cx="36" cy="36" r={R} fill="none" stroke="#2D333B" strokeWidth="4" />
+      <circle cx="17" cy="17" r={R} fill="none" stroke="#2D333B" strokeWidth="3" />
       {/* Progress arc */}
       <circle
-        cx="36" cy="36" r={R} fill="none"
+        cx="17" cy="17" r={R} fill="none"
         stroke={color}
-        strokeWidth="4"
+        strokeWidth="3"
         strokeLinecap="round"
         strokeDasharray={`${dash} ${C}`}
         strokeDashoffset={0}
-        transform="rotate(-90 36 36)"
-        style={{ transition: 'stroke-dasharray 1s linear', filter: active ? `drop-shadow(0 0 6px ${color})` : 'none' }}
+        transform="rotate(-90 17 17)"
+        style={{ transition: 'stroke-dasharray 1s linear', filter: active ? `drop-shadow(0 0 4px ${color})` : 'none' }}
       />
       {/* Glow dot at progress tip */}
       {active && (
         <circle
-          cx={36 + R * Math.cos((progress * 2 * Math.PI) - Math.PI / 2)}
-          cy={36 + R * Math.sin((progress * 2 * Math.PI) - Math.PI / 2)}
-          r="3"
+          cx={17 + R * Math.cos((progress * 2 * Math.PI) - Math.PI / 2)}
+          cy={17 + R * Math.sin((progress * 2 * Math.PI) - Math.PI / 2)}
+          r="2.5"
           fill={color}
-          style={{ filter: `drop-shadow(0 0 4px ${color})` }}
+          style={{ filter: `drop-shadow(0 0 3px ${color})` }}
         />
       )}
     </svg>
@@ -339,13 +339,13 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
           border-bottom: 1px solid rgba(227,179,65,.15);
           padding-bottom: 0.3em;
         }
-        .prose-study h1 { font-size: 1.45rem; }
-        .prose-study h2 { font-size: 1.2rem; }
-        .prose-study h3 { font-size: 1.05rem; color: #F0C24F; }
+        .prose-study h1 { font-size: 1.6rem; }
+        .prose-study h2 { font-size: 1.35rem; }
+        .prose-study h3 { font-size: 1.15rem; color: #F0C24F; }
         .prose-study p {
-          color: #D1D5DB;
+          color: #E0E6ED;
           line-height: 1.85;
-          font-size: 0.97rem;
+          font-size: 1.05rem;
           margin-bottom: 1em;
         }
         .prose-study strong { color: #F0C24F; font-weight: 700; }
@@ -414,7 +414,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
         }
       `}</style>
 
-      <div className="animate-fade-in max-w-3xl w-full mx-auto flex flex-col space-y-4 h-[calc(100dvh-290px)] md:h-[calc(100vh-190px)]" ref={contentRef}>
+      <div className="animate-fade-in max-w-3xl w-full mx-auto flex flex-col space-y-3 h-[calc(100dvh-170px)] md:h-[calc(100vh-130px)]" ref={contentRef}>
         {/* ── Header ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -455,22 +455,22 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
           </div>
         )}
 
-        {/* ── Pomodoro Timer ── */}
+        {/* ── Pomodoro Timer (Slim Header Bar) ── */}
         <div
-          className="flex items-center gap-4 px-4 py-3 rounded-xl border flex-shrink-0"
+          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border flex-shrink-0 overflow-hidden w-full"
           style={{
             background: 'linear-gradient(135deg, #161B22 0%, #12161C 100%)',
             borderColor: pomodoroActive
               ? (pomodoroPhase === 'focus' ? 'rgba(227,179,65,.4)' : 'rgba(63,185,80,.4)')
               : '#2D333B',
             boxShadow: pomodoroActive
-              ? (pomodoroPhase === 'focus' ? '0 0 16px rgba(227,179,65,.08)' : '0 0 16px rgba(63,185,80,.08)')
+              ? (pomodoroPhase === 'focus' ? '0 0 12px rgba(227,179,65,.08)' : '0 0 12px rgba(63,185,80,.08)')
               : 'none',
             transition: 'all 0.4s ease',
           }}
         >
           {/* Ring */}
-          <div className={pomodoroActive ? 'sms-pom-active' : ''}>
+          <div className={`flex-shrink-0 ${pomodoroActive ? 'sms-pom-active' : ''}`}>
             <PomodoroRing
               seconds={pomodoroSeconds}
               total={pomodoroTotal}
@@ -480,45 +480,40 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
           </div>
 
           {/* Time & phase */}
-          <div className="flex-1">
-            <div className="flex items-baseline gap-2">
-              <span
-                className="text-2xl font-mono font-bold tracking-wider"
-                style={{ color: pomodoroPhase === 'focus' ? '#E3B341' : '#3FB950' }}
-              >
-                {formatTime(pomodoroSeconds)}
-              </span>
-              <span className="text-[10px] font-mono font-bold tracking-widest uppercase"
-                style={{ color: pomodoroPhase === 'focus' ? '#C9A227' : '#2EA043' }}
-              >
-                {pomodoroPhase === 'focus' ? '🎯 Focus' : '☕ Break'}
-              </span>
-            </div>
-            <p className="text-[9px] font-mono text-[#484F58] tracking-wide mt-0.5">
-              {pomodoroPhase === 'focus' ? 'Stay focused — you\'ve got this!' : 'Rest up, you earned it.'}
-            </p>
+          <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2">
+            <span
+              className="text-base sm:text-lg font-mono font-bold tracking-wider flex-shrink-0"
+              style={{ color: pomodoroPhase === 'focus' ? '#E3B341' : '#3FB950' }}
+            >
+              {formatTime(pomodoroSeconds)}
+            </span>
+            <span className="text-[9px] sm:text-[10px] font-mono font-bold tracking-widest uppercase px-1.5 sm:px-2 py-0.5 rounded bg-[#0D1117] border border-[#2D333B] truncate"
+              style={{ color: pomodoroPhase === 'focus' ? '#C9A227' : '#2EA043' }}
+            >
+              {pomodoroPhase === 'focus' ? '🎯 Focus' : '☕ Break'}
+            </span>
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={togglePomodoro}
               title={pomodoroActive ? 'Pause' : 'Start'}
-              className="w-8 h-8 flex items-center justify-center rounded-lg transition-all cursor-pointer"
+              className="w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer flex-shrink-0"
               style={{
                 background: pomodoroActive ? 'rgba(248,81,73,.12)' : 'rgba(63,185,80,.12)',
                 color: pomodoroActive ? '#F85149' : '#3FB950',
                 border: `1px solid ${pomodoroActive ? 'rgba(248,81,73,.25)' : 'rgba(63,185,80,.25)'}`,
               }}
             >
-              {pomodoroActive ? <Pause size={14} /> : <Play size={14} />}
+              {pomodoroActive ? <Pause size={12} /> : <Play size={12} />}
             </button>
             <button
               onClick={resetPomodoro}
               title="Reset"
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#21262D] hover:bg-[#30363D] text-[#8B949E] hover:text-white border border-[#30363D] transition-all cursor-pointer"
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#21262D] hover:bg-[#30363D] text-[#8B949E] hover:text-white border border-[#30363D] transition-all cursor-pointer flex-shrink-0"
             >
-              <RotateCcw size={13} />
+              <RotateCcw size={12} />
             </button>
           </div>
         </div>

@@ -702,22 +702,22 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       {/* Step 2: Review & Save */}
       {step === 'review' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded border border-[#30363D] bg-[#161B22]">
-            <div className="min-w-0 w-full sm:w-auto">
-              <span className="text-[9px] sm:text-[10px] font-mono text-[#8B949E]">
-                <span className="hidden xs:inline">Deck Title: </span><span className="text-white font-bold truncate">{generatedTitle}</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl border border-[#30363D] bg-[#161B22] overflow-hidden">
+            <div className="min-w-0 flex items-center justify-between sm:justify-start gap-2">
+              <span className="text-xs font-mono text-[#8B949E] truncate">
+                <span className="text-white font-bold">{generatedTitle || 'Generated Cards'}</span>
               </span>
-              <span className="ml-2 sm:ml-3 text-[9px] sm:text-[10px] font-mono text-[#8B949E]">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#30363D] text-[#8B949E] flex-shrink-0">
                 {generatedCards.length} cards
               </span>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 min-w-0">
               <select
                 value={selectedDeckId}
                 onChange={(e) => setSelectedDeckId(e.target.value)}
-                className="flex-grow sm:flex-grow-0 px-2 py-1 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-[9px] sm:text-[10px] font-mono focus:outline-none focus:border-[#E3B341] cursor-pointer"
+                className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] cursor-pointer truncate"
               >
-                <option value="">Select deck...</option>
+                <option value="">Select target deck...</option>
                 {decks.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
@@ -725,9 +725,9 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
               <button
                 onClick={handleSaveAll}
                 disabled={!selectedDeckId}
-                className="px-2.5 py-1 bg-[#3FB950] hover:bg-[#4ade80] disabled:bg-[#2D333B] disabled:text-[#484F58] text-[#0F1115] text-[9px] sm:text-[10px] font-bold tracking-wider rounded transition-colors flex items-center space-x-1 cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
+                className="px-3.5 py-1.5 bg-[#3FB950] hover:bg-[#4ade80] disabled:bg-[#2D333B] disabled:text-[#484F58] text-[#0F1115] text-xs font-bold tracking-wider rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
               >
-                <Save size={11} />
+                <Save size={13} />
                 <span>Save</span>
               </button>
             </div>
