@@ -192,12 +192,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                   <ArrowRight size={16} className="flex-shrink-0 hidden sm:block" />
                 </button>
               )}
-              {!recommendedDeck && decks.length > 0 && (
-                <div className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 px-3 text-[#3FB950] text-[11px] font-mono rounded-lg border border-[#30363D] whitespace-nowrap">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse flex-shrink-0"></span>
-                  <span className="truncate">All cards up to date</span>
-                </div>
-              )}
+
 
               <button
                 onClick={() => setShowCreateModal(true)}
