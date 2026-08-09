@@ -649,18 +649,19 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                   style={{ background: '#E3B341' }}
                 />
 
-                <div className="space-y-3.5 pt-1">
+                <div className="space-y-3.5 pt-1 min-w-0">
                   {/* Subject Badge & File Format */}
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 min-w-0">
                     <span
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider"
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider max-w-[62%] truncate"
                       style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.border}` }}
+                      title={item.subject}
                     >
-                      <Tag size={10} style={{ color: theme.iconColor }} />
-                      {item.subject}
+                      <Tag size={10} style={{ color: theme.iconColor }} className="shrink-0" />
+                      <span className="truncate">{item.subject}</span>
                     </span>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 bg-[#0D1117] text-[#8B949E] border border-[#30363D] rounded-md">
                         {item.fileType.toUpperCase()}
                       </span>
@@ -680,17 +681,17 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                   </div>
 
                   {/* Title & Description */}
-                  <div>
-                    <h3 className="text-base font-bold text-white group-hover:text-[#E3B341] transition-colors line-clamp-2 leading-snug">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-white group-hover:text-[#E3B341] transition-colors line-clamp-2 leading-snug break-words">
                       {item.title}
                     </h3>
                     {item.description && (
-                      <p className="text-xs text-[#8B949E] line-clamp-2 mt-2 leading-relaxed">
+                      <p className="text-xs text-[#8B949E] line-clamp-2 mt-2 leading-relaxed break-words">
                         {item.description}
                       </p>
                     )}
                     {aiSummaries[item.id] ? (
-                      <p className="text-xs text-[#C9D1D9] leading-relaxed mt-2 line-clamp-3">
+                      <p className="text-xs text-[#C9D1D9] leading-relaxed mt-2 line-clamp-3 break-words">
                         {aiSummaries[item.id].summary}
                       </p>
                     ) : summarizingIds.has(item.id) ? (
@@ -717,14 +718,14 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
                   {/* Tags + AI topics */}
                   {item.tags.length > 0 || (aiSummaries[item.id]?.topics.length ?? 0) > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
+                    <div className="flex flex-wrap gap-1.5 pt-1 min-w-0">
                       {item.tags.slice(0, 3).map((t, idx) => (
-                        <span key={idx} className="text-[9px] font-mono text-[#8B949E] bg-[#0D1117] px-2 py-0.5 rounded-md border border-[#2D333B]">
+                        <span key={idx} title={t} className="max-w-full truncate text-[9px] font-mono text-[#8B949E] bg-[#0D1117] px-2 py-0.5 rounded-md border border-[#2D333B]">
                           #{t}
                         </span>
                       ))}
                       {(aiSummaries[item.id]?.topics ?? []).map((t, idx) => (
-                        <span key={`ai-${idx}`} className="text-[9px] font-mono text-[#58A6FF] bg-[#58A6FF]/10 px-2 py-0.5 rounded-md border border-[#58A6FF]/30">
+                        <span key={`ai-${idx}`} title={t} className="max-w-full truncate text-[9px] font-mono text-[#58A6FF] bg-[#58A6FF]/10 px-2 py-0.5 rounded-md border border-[#58A6FF]/30">
                           {t}
                         </span>
                       ))}
