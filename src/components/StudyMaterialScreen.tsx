@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, type FC } from 'react';
 import { Deck, Card } from '../types';
 import {
-  ArrowLeft, Edit3, BookOpen, Play, ChevronLeft, ChevronRight,
-  Pause, RotateCcw, Clock,
+  Edit3, BookOpen, Play, ChevronLeft, ChevronRight,
+  Pause, RotateCcw,
   Bold, Italic, Code, Minus, List, Quote, Heading1, Heading2, Heading3, Sparkles,
   Wand2, Loader2,
 } from 'lucide-react';
@@ -415,31 +415,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
       `}</style>
 
       <div className="animate-fade-in max-w-3xl w-full mx-auto flex flex-col space-y-3 h-[calc(100dvh-170px)] md:h-[calc(100vh-130px)]" ref={contentRef}>
-        {/* ── Header ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={onGoBack}
-              className="p-1.5 text-[#8B949E] hover:text-white hover:bg-[#21262D] rounded-lg transition-all cursor-pointer flex-shrink-0"
-              title="Go Back"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono tracking-widest text-[#E3B341] uppercase font-bold">
-                  Study Material
-                </span>
-                <span className="flex items-center gap-1 text-[9px] font-mono text-[#8B949E]">
-                  <Clock size={9} />
-                  ~{estimatedMinutes} min read
-                </span>
-              </div>
-              <h2 className="text-base sm:text-lg font-bold text-white truncate leading-tight">{deck.name}</h2>
-            </div>
-          </div>
 
-          </div>
 
         {/* ── Progress bar (reading progress) ── */}
         {!editing && totalPages > 1 && (
@@ -680,14 +656,14 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
 
               {/* ── Pagination footer ── */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between px-5 py-4 border-t"
+                <div className="flex items-center justify-between gap-2 px-3 py-2.5 sm:px-5 sm:py-3 border-t flex-shrink-0 overflow-hidden"
                   style={{ borderColor: '#1C2128', background: 'rgba(13,17,23,.6)' }}>
                   {/* Prev */}
                   <button
                     onClick={goToPrevPage}
                     disabled={currentPage === 0}
                     title="Previous page (←)"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[10px] font-semibold tracking-wider uppercase transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-[10px] font-semibold tracking-wider uppercase transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
                     style={{
                       background: '#21262D',
                       border: '1px solid #30363D',
@@ -699,7 +675,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
                   </button>
 
                   {/* Dot indicators */}
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1.5 px-1 min-w-0 overflow-x-auto scrollbar-none flex-shrink-0">
                     {totalPages <= 10
                       ? pages.map((_, i) => (
                         <button
@@ -708,12 +684,12 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
                             setPageDir(i > currentPage ? 'next' : 'prev');
                             setCurrentPage(i);
                           }}
-                          className={`dot-nav-btn w-2 h-2 rounded-full cursor-pointer ${i === currentPage ? 'active' : ''}`}
+                          className={`dot-nav-btn w-2 h-2 rounded-full cursor-pointer flex-shrink-0 ${i === currentPage ? 'active' : ''}`}
                           title={`Page ${i + 1}`}
                         />
                       ))
                       : (
-                        <span className="text-[11px] font-mono text-[#8B949E]">
+                        <span className="text-[10px] sm:text-[11px] font-mono text-[#8B949E] whitespace-nowrap">
                           Page <span className="text-white font-bold">{currentPage + 1}</span>
                           {' '}/ {totalPages}
                         </span>
@@ -726,7 +702,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
                     onClick={goToNextPage}
                     disabled={currentPage >= totalPages - 1}
                     title="Next page (→)"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
                     style={{
                       background: currentPage < totalPages - 1
                         ? 'linear-gradient(135deg, #E3B341, #F0C24F)'

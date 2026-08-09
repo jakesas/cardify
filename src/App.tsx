@@ -21,7 +21,7 @@ import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import { LibraryScreen } from './components/LibraryScreen';
 import logoSrc from '/logo.png';
-import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save } from 'lucide-react';
+import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save, ArrowLeft } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
@@ -587,68 +587,88 @@ function AppInner() {
           </div>
         </header>
 
-        {/* Deck-scoped secondary tab bar — visible only while inside a deck, hidden on global tabs */}
+        {/* Deck-scoped secondary header & tab bar — visible only while inside a deck */}
         {activeDeck && ['study', 'review', 'editor', 'quiz', 'weak'].includes(activeTab) && (
-          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-0 -mt-1 mb-3 pb-2 border-b border-[#2D333B]/50">
-            <nav className="flex items-center gap-0.5 overflow-x-auto scrollbar-none w-full md:w-auto" aria-label="Deck actions">
-              {[
-                { key: 'study', icon: BookOpen, label: 'Study', onClick: () => setActiveTab('study') },
-                { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
-                { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
-                { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
-                { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
-              ].map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={item.onClick}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? 'text-white bg-[#0F1115] shadow-sm border border-[#2D333B]'
-                        : 'text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-transparent'
-                    }`}
-                  >
-                    <Icon size={13} className={isActive ? 'text-[#E3B341]' : ''} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            {activeTab === 'study' && (
-              <div className="flex items-center gap-2 md:ml-auto flex-shrink-0 md:sticky md:right-0 bg-[#0F1115] md:shadow-[-8px_0_16px_rgba(15,17,21,0.95)] md:pl-2 w-full md:w-auto">
-                {!studyEditing ? (
-                  <button
-                    onClick={() => setStudyEditing(true)}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-[#30363D]"
-                  >
-                    <Edit3 size={13} />
-                    <span>Edit Material</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => studyScreenRef.current?.save()}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115]"
-                  >
-                    <Save size={13} />
-                    <span>Save</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => setActiveTab('review')}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#0F1115]"
-                  style={{
-                    background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
-                    boxShadow: '0 0 12px rgba(227,179,65,.35)',
-                  }}
-                >
-                  <Zap size={13} />
-                  <span>Start Flashcards</span>
-                </button>
+          <div className="flex flex-col gap-2.5 -mt-1 mb-3 pb-2 border-b border-[#2D333B]/50">
+            {/* Top Row: Back button, Section Label & Deck Title (e.g. Day-2) */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                onClick={() => { setActiveTab('decks'); setSelectedDeckId(null); }}
+                className="p-1.5 text-[#8B949E] hover:text-white hover:bg-[#21262D] rounded-lg transition-all cursor-pointer flex-shrink-0"
+                title="Back to Decks"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <div className="min-w-0 flex-1">
+                <span className="text-[9px] font-mono tracking-widest text-[#E3B341] uppercase font-bold block leading-none">
+                  {activeTab === 'study' ? 'Study Material' : activeTab === 'review' ? 'Flashcard Review' : activeTab === 'editor' ? 'Deck Editor' : activeTab === 'quiz' ? 'Deck Quiz' : 'Weak Spots'}
+                </span>
+                <h2 className="text-base sm:text-lg font-extrabold text-white truncate leading-tight mt-0.5">{activeDeck.name}</h2>
               </div>
-            )}
+            </div>
+
+            {/* Bottom Row: Tab Navigation & Actions */}
+            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-0">
+              <nav className="flex items-center gap-0.5 overflow-x-auto scrollbar-none w-full md:w-auto" aria-label="Deck actions">
+                {[
+                  { key: 'study', icon: BookOpen, label: 'Study', onClick: () => setActiveTab('study') },
+                  { key: 'review', icon: Activity, label: 'Review', onClick: () => setActiveTab('review') },
+                  { key: 'editor', icon: Database, label: 'Edit', onClick: () => setActiveTab('editor') },
+                  { key: 'quiz', icon: Zap, label: 'Quiz', onClick: () => setActiveTab('quiz') },
+                  { key: 'weak', icon: AlertTriangle, label: 'Weak', onClick: () => setActiveTab('weak') },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={item.onClick}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+                        isActive
+                          ? 'text-white bg-[#0F1115] shadow-sm border border-[#2D333B]'
+                          : 'text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-transparent'
+                      }`}
+                    >
+                      <Icon size={13} className={isActive ? 'text-[#E3B341]' : ''} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {activeTab === 'study' && (
+                <div className="flex items-center gap-2 md:ml-auto flex-shrink-0 md:sticky md:right-0 bg-[#0F1115] md:shadow-[-8px_0_16px_rgba(15,17,21,0.95)] md:pl-2 w-full md:w-auto">
+                  {!studyEditing ? (
+                    <button
+                      onClick={() => setStudyEditing(true)}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-[#30363D]"
+                    >
+                      <Edit3 size={13} />
+                      <span>Edit Material</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => studyScreenRef.current?.save()}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115]"
+                    >
+                      <Save size={13} />
+                      <span>Save</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setActiveTab('review')}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#0F1115]"
+                    style={{
+                      background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
+                      boxShadow: '0 0 12px rgba(227,179,65,.35)',
+                    }}
+                  >
+                    <Zap size={13} />
+                    <span>Start Flashcards</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
