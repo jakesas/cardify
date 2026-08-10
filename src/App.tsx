@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Deck, Card, ReviewHistory, ExamDomain } from './types';
 
 import { DeckListScreen } from './components/DeckListScreen';
@@ -56,7 +56,7 @@ function AppInner() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [sectionLoading, setSectionLoading] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (activeTab === 'ai' || activeTab === 'stats') {
       setSectionLoading(true);
       const t = setTimeout(() => setSectionLoading(false), 600);
