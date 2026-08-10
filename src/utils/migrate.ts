@@ -31,6 +31,7 @@ import {
   toFirestoreDeck,
   toFirestoreCard,
   toFirestoreReview,
+  serialize,
   SYNC_COLLECTIONS,
   FirestoreDeck,
   FirestoreCard,
@@ -249,7 +250,7 @@ function mapAiSession(row: LegacyAiSessionRow): AiSession {
 
 // --- Firestore writes ------------------------------------------------------
 
-async function putAll<T>(
+async function putAll<T extends object>(
   colRef: CollectionReference<T>,
   records: Array<{ id: string; data: T }>
 ): Promise<number> {
@@ -258,7 +259,8 @@ async function putAll<T>(
   for (let i = 0; i < records.length; i += WRITE_BATCH) {
     const batch = writeBatch(fs);
     for (const record of records.slice(i, i + WRITE_BATCH)) {
-      batch.set(doc(colRef, record.id), record.data);
+      // Firestore rejects undefined field values — strip them from legacy rows.
+      batch.set(doc(colRef, record.id), serialize(record.data));
       written++;
     }
     await batch.commit();
