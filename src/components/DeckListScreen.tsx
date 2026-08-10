@@ -1,4 +1,5 @@
 import { useState, useEffect, type FC } from 'react';
+import { createPortal } from 'react-dom';
 import { Deck, Card } from '../types';
 import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
@@ -365,7 +366,10 @@ const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
                           <MoreHorizontal size={13} />
                         </button>
 
-                        {showOverflow && (
+                        {showOverflow &&
+                          // Portal out of the card: its hover transform becomes the
+                          // containing block for position:fixed, displacing the menu.
+                          createPortal(
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setOverflowMenuDeckId(null)} />
                             <div
@@ -415,7 +419,8 @@ const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
                                 <span>Print study sheet</span>
                               </button>
                             </div>
-                          </>
+                          </>,
+                          document.body,
                         )}
                       </div>
                     </div>
