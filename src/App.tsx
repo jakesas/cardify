@@ -30,6 +30,10 @@ import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
 import { backupBeforeDestructive, maybeAutoBackup, createBackup, restoreLatestBackup } from './utils/backup';
 import { migrateLegacyData } from './utils/migrate';
 
+/** Snapshot reload and optimistic append can both deliver the same new item. */
+const mergeUnique = <T extends { id: string }>(prev: T[], item: T): T[] =>
+  prev.some(p => p.id === item.id) ? prev : [...prev, item];
+
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
 
@@ -245,7 +249,7 @@ function AppInner() {
   const handleCreateDeck = async (name: string, description: string) => {
     try {
       const newDeck = await createDeck(name, description);
-      setDecks(prev => [...prev, newDeck]);
+      setDecks(prev => mergeUnique(prev, newDeck));
     } catch (err) {
       console.error('Failed to create deck:', err);
       setError(err instanceof Error ? err.message : 'Failed to create deck');
@@ -281,7 +285,7 @@ function AppInner() {
   const handleAddCard = async (cardData: { deckId: string; cardType?: 'basic' | 'cloze'; front: string; back: string; tag: ExamDomain; imagePath?: string; codeSnippet?: { code: string; language: string }; topology?: any }) => {
     try {
       const newCard = await createCard(cardData);
-      setCards(prev => [...prev, newCard]);
+      setCards(prev => mergeUnique(prev, newCard));
     } catch (err) {
       console.error('Failed to add card:', err);
       setError(err instanceof Error ? err.message : 'Failed to add card');
@@ -346,7 +350,7 @@ function AppInner() {
           cardType: 'basic',
         });
       }
-      setDecks(prev => [...prev, newDeck]);
+      setDecks(prev => mergeUnique(prev, newDeck));
       const allCards = await getAllCards();
       setCards(allCards);
       return newDeck.id;
@@ -688,7 +692,7 @@ function AppInner() {
           {[
             { key: 'decks', icon: LayoutGrid, label: 'Decks', onClick: () => { setActiveTab('decks'); setSelectedDeckId(null); } },
             { key: 'community', icon: Globe, label: 'Community', onClick: () => setActiveTab('community') },
-            { key: 'ai', icon: Wand2, label: 'AI', centered: true, onClick: () => setActiveTab('ai') },
+            { key: 'ai', icon: Wand2, label: 'AI', onClick: () => setActiveTab('ai') },
           ].map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
@@ -723,14 +727,14 @@ function AppInner() {
             <button
               onClick={() => setShowMobileMenu(prev => !prev)}
               className={`flex flex-col items-center gap-0.5 py-1 px-3 transition-colors cursor-pointer ${
-                showMobileMenu ? 'text-[#E3B341]' : 'text-[#8B949E] hover:text-white'
+                showMobileMenu || ['groups', 'library', 'stats', 'search'].includes(activeTab) ? 'text-[#E3B341]' : 'text-[#8B949E] hover:text-white'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
               </svg>
-              <span className={`text-[9px] font-medium font-mono ${showMobileMenu ? 'font-bold' : ''}`}>More</span>
-              {showMobileMenu && <span className="w-4 h-0.5 rounded-full bg-[#E3B341] mt-0.5" />}
+              <span className={`text-[9px] font-medium font-mono ${showMobileMenu || ['groups', 'library', 'stats', 'search'].includes(activeTab) ? 'font-bold' : ''}`}>More</span>
+              {(showMobileMenu || ['groups', 'library', 'stats', 'search'].includes(activeTab)) && <span className="w-4 h-0.5 rounded-full bg-[#E3B341] mt-0.5" />}
             </button>
 
             {showMobileMenu && (
