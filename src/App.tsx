@@ -25,11 +25,10 @@ import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen,
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { ManageDataMenu, type SyncStatus } from './components/ManageDataMenu';
-import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
-import { getDb, setDbUser } from './db/client';
+import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, setSetting, setDbUser, clearAllUserData, subscribeToUserData } from './db/queries';
 import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
 import { backupBeforeDestructive, maybeAutoBackup, createBackup, restoreLatestBackup } from './utils/backup';
-import { initializeSync } from './utils/syncEngine';
+import { migrateLegacyData } from './utils/migrate';
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -69,43 +68,35 @@ function AppInner() {
   useEffect(() => {
     if (!user) return;
     const uid = user.uid;
+    let unsub: (() => void) | null = null;
+    let cancelled = false;
 
     async function init() {
       try {
         setDbUser(uid);
 
+        // One-time legacy IndexedDB → Firestore migration (idempotent, non-blocking)
+        await migrateLegacyData(uid);
+
         // Auto-backup on startup (once per day)
         await maybeAutoBackup('auto-startup');
 
-        // Backup BEFORE any schema migration runs — safety net first
-        await backupBeforeDestructive('pre-migration');
-
-        // Remove only legacy sample decks (blanket DELETE destroyed user data).
-        const schema = await getSetting('db_schema');
-        if (schema !== '2') {
-          const db = await getDb();
-          const seedRows = await db.select<{ id: number }[]>(
-            "SELECT id FROM decks WHERE name IN ('Getting Started', 'SRS Fundamentals', 'Study Tips', 'Custom Deck')"
-          );
-          for (const row of seedRows) {
-            await db.execute('DELETE FROM cards WHERE deck_id = ?', [row.id]);
-            await db.execute('DELETE FROM decks WHERE id = ?', [row.id]);
-          }
-          await setSetting('db_schema', '2');
-        }
-
         await loadAllData();
-        
-        // Initialize Firestore sync — pass loadAllData so the UI refreshes after every pull
-        if (user) {
-          await initializeSync(user, loadAllData);
-        }
+
+        // Live-reload whenever Firestore data changes (own device or synced)
+        if (cancelled) return;
+        unsub = subscribeToUserData(uid, loadAllData);
       } catch (err) {
         console.error('Failed to initialize database:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize database');
       }
     }
-    init();
+    void init();
+
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
   }, [user?.uid]);
 
   // Detect ?import= parameter from shared deck links
@@ -402,10 +393,7 @@ function AppInner() {
         // Backup BEFORE the destructive wipe — safety net
         await backupBeforeDestructive('pre-reset');
 
-        const db = await getDb();
-        await db.execute('DELETE FROM reviews');
-        await db.execute('DELETE FROM cards');
-        await db.execute('DELETE FROM decks');
+        await clearAllUserData();
         await loadAllData();
         setSelectedDeckId(null);
         setActiveTab('decks');
@@ -1007,7 +995,7 @@ function AppInner() {
 
         <footer className="mt-8 sm:mt-12 pt-4 border-t border-[#2D333B] text-center">
           <p className="text-[11px] font-mono text-[#8B949E]">
-            Sm-2 spaced repetition engine &mdash; all data stored locally in your browser
+            Sm-2 spaced repetition engine &mdash; data synced securely to your account
           </p>
         </footer>
       </div>
