@@ -1,8 +1,8 @@
 # Flashpoint - CCNA 200-301 SRS Study Tool
 
-An offline-first, single-user spaced-repetition desktop app purpose-built for CCNA 200-301 exam preparation using the SM-2 algorithm.
+A cloud-synced, per-account spaced-repetition web app purpose-built for CCNA 200-301 exam preparation using the SM-2 algorithm.
 
-Built with Tauri v2 + React 19 + TypeScript + SQLite.
+Built with React 19 + TypeScript + Vite + Firebase (Auth + Firestore).
 
 ## Features
 
@@ -11,32 +11,43 @@ Built with Tauri v2 + React 19 + TypeScript + SQLite.
 - Rich card content: text, code snippets, network topology diagrams
 - Keyboard-driven review workflow
 - Statistics dashboard with retention tracking and 7-day forecast
-- Full offline operation - no account, no sync, no subscription
+- Cloud sync — data is stored per account in Firestore and live-reloads across devices
+- One-time automatic migration of legacy locally-stored (IndexedDB) data on first login
+- Backup & restore snapshots stored in your account
 
 ## Prerequisites
 
 - Node.js 18+
-- Rust toolchain (for Tauri desktop build)
-- SQLite (bundled via tauri-plugin-sql)
+- A Firebase project with Auth (email/password + Google) and Firestore enabled
+- Environment variables (`.env`):
+
+```bash
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
 
 ## Development
 
 ```bash
 npm install
-npm run dev        # Web-only dev mode (port 3000)
-npm run tauri dev  # Tauri desktop dev mode
+npm run dev        # Vite dev server (port 3000)
 ```
 
 ## Build
 
 ```bash
-npm run tauri build  # Produces installable binary in src-tauri/target/release
+npm run build      # Produces a static bundle in dist/
+npm run typecheck  # tsc --noEmit
+npm test           # Vitest unit tests
 ```
 
 ## Tech Stack
 
-- **Shell:** Tauri v2 (Rust)
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS v4
-- **Database:** SQLite via tauri-plugin-sql
+- **Backend:** Firebase Authentication + Cloud Firestore
 - **Algorithm:** SM-2 (SuperMemo 2)
