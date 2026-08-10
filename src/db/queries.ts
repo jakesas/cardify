@@ -346,7 +346,7 @@ function mapRowToAiSession(row: any): AiSession {
   return {
     id: String(row.id),
     sessionType: row.session_type,
-    inputText: row.input_text,
+    inputText: row.input_text ?? '',
     outputText: row.output_text ?? undefined,
     cardsJson: row.cards_json ?? undefined,
     deckId: row.deck_id ? String(row.deck_id) : undefined,
