@@ -5,7 +5,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
-  signInWithCredential,
   getRedirectResult,
   GoogleAuthProvider,
   setPersistence,
@@ -72,75 +71,6 @@ export function loginGoogleRedirect(): void {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   signInWithRedirect(auth, provider);
-}
-
-/**
- * Tauri-only Google sign-in. Opens the system browser and captures the OAuth
- * access token via a localhost server. WebView2 blocks the cross-origin auth
- * iframe that popup/redirect rely on, so the system-browser flow is required.
- */
-export async function loginGoogleSystemBrowser(): Promise<User> {
-  const auth = getFirebaseAuth();
-  const [{ start, cancel, onUrl }, { openUrl }] = await Promise.all([
-    import('@fabianlars/tauri-plugin-oauth'),
-    import('@tauri-apps/plugin-opener'),
-  ]);
-
-  return new Promise<User>((resolve, reject) => {
-    let port: number | null = null;
-    let settled = false;
-    let unlisten: (() => void) | null = null;
-
-    const cleanup = () => {
-      if (unlisten) {
-        unlisten();
-        unlisten = null;
-      }
-      if (port !== null) {
-        cancel(port);
-        port = null;
-      }
-    };
-
-    const finish = (err: unknown, user: User | null = null) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      if (err) reject(err);
-      else resolve(user!);
-    };
-
-    start()
-      .then(async (p) => {
-        port = p;
-        unlisten = await onUrl((url: string) => {
-          const parsed = new URL(url);
-          const hashParams = new URLSearchParams(parsed.hash.substring(1));
-          const accessToken = hashParams.get('access_token');
-          if (!accessToken) {
-            finish(new Error('OAuth callback missing access_token: ' + url));
-            return;
-          }
-          const credential = GoogleAuthProvider.credential(null, accessToken);
-          signInWithCredential(auth, credential)
-            .then((result) => finish(null, result.user))
-            .catch((err) => finish(err));
-        });
-
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const redirectUri = encodeURIComponent(`http://localhost:${p}`);
-        const oauthUrl =
-          'https://accounts.google.com/o/oauth2/v2/auth?' +
-          `client_id=${encodeURIComponent(clientId)}&` +
-          `redirect_uri=${redirectUri}&` +
-          'response_type=token&' +
-          'scope=' + encodeURIComponent('email profile openid') + '&' +
-          'prompt=select_account';
-
-        await openUrl(oauthUrl);
-      })
-      .catch((err) => finish(err));
-  });
 }
 
 export async function handleRedirectResult(): Promise<User | null> {
