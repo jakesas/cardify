@@ -2,15 +2,11 @@ import { useState, useEffect, type FC } from 'react';
 import { Deck, Card } from '../types';
 import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal } from 'lucide-react';
 import { isDue, getLocalDateString } from '../utils/sm2';
-import { ManageDataMenu, type SyncStatus } from './ManageDataMenu';
 
 interface DeckListScreenProps {
   decks: Deck[];
   cards: Card[];
   streakDays: number;
-  syncStatus: SyncStatus;
-  onBackupNow: () => Promise<void>;
-  onRestoreBackup: () => Promise<void>;
   onSelectDeck: (deckId: string, tab: 'study' | 'review' | 'editor' | 'quiz') => void;
   onCreateDeck: (name: string, description: string) => void;
   onDeleteDeck: (deckId: string) => void;
@@ -24,9 +20,6 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   decks,
   cards,
   streakDays,
-  syncStatus,
-  onBackupNow,
-  onRestoreBackup,
   onSelectDeck,
   onCreateDeck,
   onDeleteDeck,
@@ -151,8 +144,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
       {/* Welcome Banner / Overview */}
       <div className="relative z-40 rounded border border-[#2D333B] bg-[#161B22] p-5 md:p-6">
         <div className="max-w-3xl space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center space-x-2 min-w-0">
+          <div className="flex items-center space-x-2 min-w-0">
               <span className="px-2 py-0.5 text-[9px] font-mono tracking-widest bg-[#0D1117] text-[#E3B341] rounded border border-[#30363D] uppercase font-bold">
                 Sm-2 engine active
               </span>
@@ -168,13 +160,6 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                 </button>
               )}
             </div>
-            <ManageDataMenu
-              syncStatus={syncStatus}
-              onBackupNow={onBackupNow}
-              onRestoreBackup={onRestoreBackup}
-              onResetToDefaults={onResetToDefaults}
-            />
-          </div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-white font-mono">
               Flashcard study instrument
@@ -186,7 +171,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
               {decks.length > 0 && (
                 <button
                   onClick={() => onSelectDeck((recommendedDeck ?? decks[0]).id, 'study')}
-                  className="flex-1 inline-flex items-center justify-center gap-1 sm:gap-2 h-10 px-2 sm:px-5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] sm:text-sm font-bold tracking-wide rounded-lg shadow-[0_0_24px_rgba(227,179,65,0.25)] transition-all cursor-pointer min-w-0"
+                  className="flex-1 sm:flex-none sm:w-72 inline-flex items-center justify-center gap-1 sm:gap-2 h-10 px-2 sm:px-5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] sm:text-sm font-bold tracking-wide rounded-lg shadow-[0_0_24px_rgba(227,179,65,0.25)] transition-all cursor-pointer min-w-0"
                 >
                   <span className="truncate">Study recommended deck</span>
                   <ArrowRight size={16} className="flex-shrink-0 hidden sm:block" />

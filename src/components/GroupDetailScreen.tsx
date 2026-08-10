@@ -1,7 +1,6 @@
 import { useState, useEffect, type FC } from 'react';
 import { ArrowLeft, Users, Upload, Check, X as XIcon, AlertCircle, Loader2, Download, BookOpen, Globe, Lock, UserCheck, UserPlus, Trash2 } from 'lucide-react';
-import { getGroup, listMembers, getPendingApprovals, approveMember, rejectMember, removeMember, listGroupDecks, incrementGroupDeckDownload, deleteGroupDeck, type Group, type GroupMember, type GroupDeck } from '../lib/groups';
-import type { SharedDeckCard } from '../lib/community';
+import { getGroup, listMembers, getPendingApprovals, approveMember, rejectMember, removeMember, subscribeGroupDecks, incrementGroupDeckDownload, deleteGroupDeck, type Group, type GroupMember, type GroupDeck } from '../lib/groups';
 
 interface GroupDetailScreenProps {
   groupId: string;
@@ -20,24 +19,33 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
 
   const isAdmin = members.find(m => m.userId === userId)?.role === 'admin';
   const isApproved = members.some(m => m.userId === userId && m.status === 'approved');
 
   useEffect(() => {
     void (async () => {
-      const [gRes, mRes, pRes, dRes] = await Promise.all([
+      const [gRes, mRes, pRes] = await Promise.all([
         getGroup(groupId),
         listMembers(groupId),
         getPendingApprovals(groupId),
-        listGroupDecks(groupId),
       ]);
       if (gRes.success && gRes.data) setGroup(gRes.data);
       if (mRes.success && mRes.data) setMembers(mRes.data);
       if (pRes.success && pRes.data) setPending(pRes.data);
-      if (dRes.success && dRes.data) setDecks(dRes.data);
-      setLoading(false);
     })();
+
+    const unsub = subscribeGroupDecks(
+      groupId,
+      (decks) => {
+        setDecks(decks);
+        setLoading(false);
+      },
+      () => setLoading(false),
+    );
+
+    return () => unsub();
   }, [groupId]);
 
   const handleApprove = async (memberId: string) => {
@@ -64,7 +72,10 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
       deck.description,
       deck.cards.map(c => ({ front: c.front, back: c.back, tag: c.tag || 'General' })),
     );
-    if (newId) incrementGroupDeckDownload(deck.id);
+    if (newId) {
+      incrementGroupDeckDownload(deck.id);
+      setImportSuccess(deck.title);
+    }
     setImportingId(null);
   };
 
@@ -108,6 +119,18 @@ export const GroupDetailScreen: FC<GroupDetailScreenProps> = ({ groupId, userId,
   return (
     <div className="space-y-4 animate-fade-in">
       <button onClick={onGoBack} className="flex items-center space-x-1 text-[11px] font-mono text-[#8B949E] hover:text-white transition-colors"><ArrowLeft size={14} /><span>Back</span></button>
+
+      {/* Import success notification */}
+      {importSuccess && (
+        <div className="flex items-start gap-2.5 p-3 rounded border border-[#3FB950]/30 bg-[#3FB950]/10 animate-fade-in">
+          <Check size={14} className="text-[#3FB950] mt-0.5 shrink-0" />
+          <div className="space-y-0.5 min-w-0 flex-1">
+            <p className="text-[11px] font-mono font-bold text-[#3FB950] uppercase tracking-wider">Message Successfully Imported</p>
+            <p className="text-[10px] font-mono text-[#8B949E]">&quot;{importSuccess}&quot; was added to your library. Check your decks to start studying.</p>
+          </div>
+          <button onClick={() => setImportSuccess(null)} className="text-[#8B949E] hover:text-white p-0.5 rounded hover:bg-[#30363D] transition-colors shrink-0" title="Dismiss"><XIcon size={12} /></button>
+        </div>
+      )}
 
       {/* Group header */}
       <div className="rounded border border-[#2D333B] bg-[#161B22] p-4 space-y-3">

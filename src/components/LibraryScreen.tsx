@@ -89,7 +89,6 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
-  const [sortBy, setSortBy] = useState<'views' | 'newest' | 'imports'>('views');
 
   // Active Reader Modal
   const [activeResource, setActiveResource] = useState<LibraryResource | null>(null);
@@ -203,20 +202,8 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       );
     }
 
-    if (sortBy === 'views') {
-      result.sort((a, b) => (b.views || 0) - (a.views || 0));
-    } else if (sortBy === 'imports') {
-      result.sort((a, b) => (b.importsCount || 0) - (a.importsCount || 0));
-    } else if (sortBy === 'newest') {
-      result.sort((a, b) => {
-        const tA = a.createdAt?.seconds || 0;
-        const tB = b.createdAt?.seconds || 0;
-        return tB - tA;
-      });
-    }
-
     return result;
-  }, [resources, selectedSubject, searchQuery, sortBy]);
+  }, [resources, selectedSubject, searchQuery]);
 
   // ── localStorage helpers for persist-across-sessions ──
   const LS_PREFIX = 'cardify_reconstruct_';
@@ -704,18 +691,6 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
               <Bot size={15} />
               <span>AI Librarian</span>
             </button>
-
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 w-full sm:w-auto"
-              style={{
-                background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
-                boxShadow: '0 0 20px rgba(227, 179, 65, 0.3)',
-              }}
-            >
-              <Upload size={15} />
-              <span>Upload Document</span>
-            </button>
           </div>
         </div>
       </div>
@@ -734,33 +709,33 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
           />
         </div>
 
-        {/* Subject Category Filter */}
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-          {['All', 'Communication', 'IT & Systems', 'Computer Science', 'Mathematics', 'Science', 'Business', 'General'].map(sub => (
-            <button
-              key={sub}
-              onClick={() => setSelectedSubject(sub)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-semibold uppercase tracking-wider transition-all cursor-pointer flex-shrink-0 ${
-                selectedSubject === sub
-                  ? 'bg-[#E3B341] text-[#0F1115] font-bold shadow-sm'
-                  : 'bg-[#21262D] text-[#8B949E] hover:text-white hover:bg-[#30363D]'
-              }`}
-            >
-              {sub}
-            </button>
-          ))}
-        </div>
+        {/* Filter Dropdown + Upload */}
+        <div className="flex items-center gap-2">
+          {/* Subject Filter */}
+          <select
+            value={selectedSubject}
+            onChange={e => setSelectedSubject(e.target.value)}
+            className="bg-[#0D1117] border border-[#30363D] text-[#8B949E] text-xs font-mono rounded-lg px-3 py-2 focus:outline-none focus:border-[#E3B341] cursor-pointer"
+            aria-label="Filter by subject"
+          >
+            {['All', 'Communication', 'IT & Systems', 'Computer Science', 'Mathematics', 'Science', 'Business', 'General'].map(sub => (
+              <option key={sub} value={sub}>{sub}</option>
+            ))}
+          </select>
 
-        {/* Sort Selector */}
-        <select
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value as any)}
-          className="bg-[#0D1117] border border-[#30363D] text-[#8B949E] text-xs font-mono rounded-lg px-3 py-2 focus:outline-none focus:border-[#E3B341] cursor-pointer"
-        >
-          <option value="views">🔥 Most Viewed</option>
-          <option value="imports">📥 Most Imported</option>
-          <option value="newest">✨ Newest First</option>
-        </select>
+          {/* Upload Document */}
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 flex-shrink-0"
+            style={{
+              background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
+              boxShadow: '0 0 20px rgba(227, 179, 65, 0.3)',
+            }}
+          >
+            <Upload size={15} />
+            <span>Upload Document</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Grid View — scrolls internally */}
@@ -1319,7 +1294,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       {/* ── Upload Modal ── */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#161B22] border border-[#30363D] rounded-2xl p-6 sm:p-8 w-full max-w-2xl space-y-5 shadow-2xl my-8">
+          <div className="bg-[#161B22] border border-[#30363D] rounded-2xl p-6 sm:p-8 w-full max-w-2xl space-y-5 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#2D333B] pb-4">
               <div className="flex items-center gap-2">
                 <Upload className="text-[#E3B341]" size={20} />
@@ -1456,7 +1431,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 </label>
                 <textarea
                   required
-                  rows={8}
+                  rows={5}
                   value={formContent}
                   onChange={e => setFormContent(e.target.value)}
                   placeholder="## Document Title&#10;&#10;Paste your notes or extract text from a file above..."

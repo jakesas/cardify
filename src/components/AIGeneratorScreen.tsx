@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, type FC } from 'react';
 import { Deck } from '../types';
 import { createCard, saveAiSession } from '../db/queries';
-import { createGroqClient, generateCardsFromText, cleanOCRText, extractTextFromImageGroq, getAiConfig, type GeneratedCard } from '../utils/groq';
+import { createGroqClient, generateCardsFromText, getAiConfig, type GeneratedCard } from '../utils/groq';
 import { extractTextFromDocx } from '../utils/docx';
 import { chunkText } from '../utils/chunker';
 import { generateStudyMaterial } from '../utils/generateStudyMaterial';
-import { Scan, FileText, Brain, Save, Loader2, AlertCircle, Upload, Check, Trash2, Wand2, File, Clock } from 'lucide-react';
+import { FileText, Brain, Save, Loader2, AlertCircle, Upload, Check, Trash2, File, Clock } from 'lucide-react';
 import { AIHistoryPanel } from './AIHistoryPanel';
 
 interface AIGeneratorScreenProps {
@@ -19,8 +19,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
   const [sourceText, setSourceText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingPhase, setProcessingPhase] = useState<'connecting' | 'generating' | 'parsing' | 'chunk_done' | 'pacing'>('connecting');
-  const [isCleaning, setIsCleaning] = useState(false);
-  const [isOcrRunning, setIsOcrRunning] = useState(false);
   const [isDocxRunning, setIsDocxRunning] = useState(false);
   const [generatedCards, setGeneratedCards] = useState<GeneratedCard[]>([]);
   const [generatedTitle, setGeneratedTitle] = useState('');
@@ -35,7 +33,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [chunkIndex, setChunkIndex] = useState(0);
   const [chunkTotal, setChunkTotal] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const docxInputRef = useRef<HTMLInputElement>(null);
 
   const AI_DRAFT_KEY = 'cardify_ai_draft';
@@ -102,25 +99,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
   const MAX_INPUT_CHARS = 10000;
   const aiConfig = getAiConfig();
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!aiConfig) { setError('AI generation unavailable — API key not configured'); return; }
-    setIsOcrRunning(true);
-    setError('');
-
-    try {
-      const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
-      const text = await extractTextFromImageGroq(client, file);
-      setSourceText(prev => prev + (prev ? '\n\n' : '') + text);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'OCR extraction failed');
-    } finally {
-      setIsOcrRunning(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
   const handleDocxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -135,28 +113,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       setIsDocxRunning(false);
       if (docxInputRef.current) docxInputRef.current.value = '';
     }
-  };
-
-  const handleCleanOCR = async () => {
-    if (!sourceText.trim()) return;
-    if (!aiConfig) { setError('AI generation unavailable — API key not configured'); return; }
-
-    setIsCleaning(true);
-    setError('');
-    const originalText = sourceText;
-
-    try {
-      const client = createGroqClient(aiConfig.apiKey, aiConfig.baseUrl);
-      const cleanedText = await cleanOCRText(client, originalText);
-      setSourceText(cleanedText);
-
-      await saveAiSession({ sessionType: 'clean', inputText: originalText, outputText: cleanedText });
-      setHistoryRefresh(n => n + 1);
-    } catch (err: any) {
-      setError(err instanceof Error ? err.message : 'AI cleaning failed');
-    }
-
-    setIsCleaning(false);
   };
 
   // Elapsed time ticker during generation
@@ -391,14 +347,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
     try { localStorage.removeItem(AI_DRAFT_KEY); } catch { /* ignore */ }
   };
 
-  const handleRestoreClean = (_inputText: string, outputText: string) => {
-    setStep('input');
-    setSourceText(outputText);
-    setSaveResults(null);
-    setError('');
-    setGeneratedCards([]);
-  };
-
   const handleRestoreGenerate = (inputText: string, cards: GeneratedCard[], title: string) => {
     setStep('review');
     setSourceText(inputText);
@@ -417,7 +365,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
             AI Flashcard Generator
           </span>
           <h2 className="text-sm font-bold text-white font-mono mt-0.5 flex items-center gap-1.5">
-            <span>OCR + Groq AI</span>
+            <span>Cardify A.I.</span>
           </h2>
         </div>
         {step === 'review' && (
@@ -433,7 +381,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       {/* History Panel */}
       <AIHistoryPanel
         refreshTrigger={historyRefresh}
-        onRestoreClean={handleRestoreClean}
         onRestoreGenerate={handleRestoreGenerate}
       />
 
@@ -467,16 +414,6 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
                 </div>
               </div>
             </div>
-            {sourceText.trim() && (
-              <button
-                onClick={handleCleanOCR}
-                disabled={isCleaning}
-                className="w-full py-1.5 bg-[#21262D] hover:bg-[#30363D] disabled:opacity-50 text-white text-[10px] font-semibold tracking-wider rounded border border-[#30363D] transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-              >
-                {isCleaning ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                <span>{isCleaning ? 'Cleaning text...' : 'Clean OCR garbage with AI'}</span>
-              </button>
-            )}
           </div>
 
           {/* Or divider */}
@@ -486,48 +423,10 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
             <div className="flex-1 h-px bg-[#2D333B]" />
           </div>
 
-          {/* Secondary: OCR + Word Upload */}
+          {/* Secondary: Word Upload */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {/* OCR Upload */}
-            <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
-              <div className="flex items-center space-x-2 text-[10px] font-mono font-semibold text-[#8B949E]">
-                <Scan size={14} className="text-[#E3B341]" />
-                <span>Vision OCR from image</span>
-              </div>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center justify-center h-28 rounded border border-dashed border-[#30363D] bg-[#0D1117] hover:border-[#E3B341] transition-colors cursor-pointer"
-              >
-                {isOcrRunning ? (
-                  <div className="text-center space-y-2">
-                    <Loader2 size={20} className="animate-spin text-[#E3B341] mx-auto" />
-                    <p className="text-[10px] font-mono text-[#8B949E]">
-                      AI Vision OCR...
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <Upload size={20} className="text-[#8B949E]" />
-                    <p className="text-[10px] font-mono text-[#8B949E] mt-1">
-                      Groq Vision AI reads the image
-                    </p>
-                  </>
-                )}
-              </div>
-              <span className="block text-[8px] font-mono text-[#484F58]">
-                JPG, PNG up to 10MB
-              </span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-              />
-            </div>
-
             {/* Word Upload */}
-            <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3">
+            <div className="p-4 rounded border border-[#2D333B] bg-[#161B22] space-y-3 sm:col-span-2 sm:max-w-md">
               <div className="flex items-center space-x-2 text-[10px] font-mono font-semibold text-[#8B949E]">
                 <File size={14} className="text-[#388BFD]" />
                 <span>Upload Word file</span>
@@ -648,7 +547,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
               <>
                 <Loader2 size={14} className="animate-spin" />
                 <span>
-                  {processingPhase === 'connecting' && 'Connecting to Groq AI...'}
+                  {processingPhase === 'connecting' && 'Connecting to Cardify A.I....'}
                   {processingPhase === 'pacing' && `Waiting... chunk ${chunkIndex}/${chunkTotal}`}
                   {processingPhase === 'generating' && (chunkTotal > 1
                     ? `Chunk ${chunkIndex}/${chunkTotal} · ${cardGenProgress > 0 ? `${cardGenProgress} cards` : 'generating...'}`
@@ -660,14 +559,14 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
             ) : (
               <>
                 <Brain size={14} />
-                <span>Generate flashcards with Groq AI</span>
+                <span>Generate flashcards with Cardify A.I.</span>
               </>
             )}
           </button>
 
           {!sourceText.trim() && !isProcessing && (
             <p className="text-[9px] font-mono text-[#484F58] text-center -mt-2">
-              Add text, an image, or a Word document above to get started
+              Add text or a Word document above to get started
             </p>
           )}
 

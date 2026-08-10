@@ -24,6 +24,7 @@ import logoSrc from '/logo.png';
 import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save, ArrowLeft } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
+import { ManageDataMenu, type SyncStatus } from './components/ManageDataMenu';
 import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, getSetting, setSetting } from './db/queries';
 import { getDb, setDbUser } from './db/client';
 import { XP_PER_CARD_AGAIN_HARD, XP_PER_CARD_GOOD_EASY } from './utils/xp';
@@ -41,7 +42,7 @@ function AppInner() {
 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [syncStatus] = useState<'synced' | 'syncing' | 'pending' | 'offline' | 'error'>('synced');
+  const [syncStatus] = useState<SyncStatus>('synced');
   const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'library' | 'groups' | 'group-detail'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [shareDeckId, setShareDeckId] = useState<string | null>(null);
@@ -504,8 +505,14 @@ function AppInner() {
                 <span className="w-px h-4 bg-[#2D333B] flex-shrink-0 hidden md:block"></span>
               </div>
 
-              {/* Mobile: avatar + logout inline in top row */}
-              <div className="flex md:hidden items-center gap-3">
+              {/* Mobile: avatar, menu + logout inline in top row */}
+              <div className="flex md:hidden items-center gap-1">
+                <ManageDataMenu
+                  syncStatus={syncStatus}
+                  onBackupNow={handleBackupNow}
+                  onRestoreBackup={handleRestoreBackup}
+                  onResetToDefaults={handleResetToDefaults}
+                />
                 {user?.photoURL ? (
                   <img
                     src={user.photoURL}
@@ -562,7 +569,13 @@ function AppInner() {
             </nav>
 
             {/* Zone Right: desktop actions */}
-            <div className="hidden md:flex items-center justify-end gap-4">
+            <div className="hidden md:flex items-center justify-end gap-3">
+              <ManageDataMenu
+                syncStatus={syncStatus}
+                onBackupNow={handleBackupNow}
+                onRestoreBackup={handleRestoreBackup}
+                onResetToDefaults={handleResetToDefaults}
+              />
               {user?.photoURL ? (
                 <img
                   src={user.photoURL}
@@ -762,9 +775,6 @@ function AppInner() {
               decks={decks}
               cards={cards}
               streakDays={streakDays}
-              syncStatus={syncStatus}
-              onBackupNow={handleBackupNow}
-              onRestoreBackup={handleRestoreBackup}
               onSelectDeck={handleSelectDeck}
               onCreateDeck={handleCreateDeck}
               onDeleteDeck={handleDeleteDeck}

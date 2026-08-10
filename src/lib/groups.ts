@@ -1,4 +1,4 @@
-import { getFirestore, collection, query, where, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, limit, type Firestore } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, addDoc, doc, updateDoc, increment, getDoc, Timestamp, limit, onSnapshot, type Firestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import type { SharedDeckCard } from './community';
 
@@ -471,6 +471,46 @@ export async function listGroupDecks(groupId: string): Promise<GroupResult<Group
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to list group decks' };
   }
+}
+
+export function subscribeGroupDecks(
+  groupId: string,
+  onUpdate: (decks: GroupDeck[]) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  const db = getDb();
+  if (!db) {
+    onError?.(new Error('Firestore not available'));
+    return () => {};
+  }
+
+  return onSnapshot(
+    query(collection(db, 'group-decks'), where('groupId', '==', groupId)),
+    (snap) => {
+      const decks: GroupDeck[] = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          groupId: data.groupId,
+          title: data.title,
+          description: data.description,
+          cards: data.cards || [],
+          createdBy: data.createdBy,
+          authorName: data.authorName,
+          visibility: data.visibility,
+          createdAt: data.createdAt,
+          downloads: data.downloads || 0,
+        } as GroupDeck;
+      });
+      decks.sort((a, b) => {
+        const ta = a.createdAt?.toMillis?.() || 0;
+        const tb = b.createdAt?.toMillis?.() || 0;
+        return tb - ta;
+      });
+      onUpdate(decks);
+    },
+    (err) => onError?.(err),
+  );
 }
 
 export async function getGroupDeck(deckId: string): Promise<GroupResult<GroupDeck>> {

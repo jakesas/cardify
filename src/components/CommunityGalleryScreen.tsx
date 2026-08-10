@@ -1,7 +1,7 @@
 import { useState, useEffect, type FC } from 'react';
 import { listSharedDecks, getSharedDeck, uploadSharedDeck, incrementDownload, deleteSharedDeck, type SharedDeckMeta, type SharedDeck } from '../lib/community';
 import { DEMO_DECKS_META, DEMO_DECKS_CARDS } from '../data/demoDecks';
-import { Search, Download, Upload, ArrowLeft, Users, BookOpen, Tag, Clock, AlertCircle, Check, Globe, Trash2 } from 'lucide-react';
+import { Search, Download, Upload, ArrowLeft, Users, BookOpen, Tag, Clock, AlertCircle, Check, Globe, Trash2, X as XIcon } from 'lucide-react';
 
 interface CommunityGalleryScreenProps {
   userId?: string;
@@ -181,9 +181,13 @@ export const CommunityGalleryScreen: FC<CommunityGalleryScreenProps> = ({ userId
         )}
       </div>
 
-      {/* Upload dialog */}
+      {/* Upload dialog — modal overlay */}
       {showUpload && (
-        <UploadDialog userId={userId} onClose={() => { setShowUpload(false); setRefreshKey(k => k + 1); }} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in" onClick={() => { setShowUpload(false); setRefreshKey(k => k + 1); }}>
+          <div onClick={e => e.stopPropagation()} className="w-full max-w-md">
+            <UploadDialog userId={userId} onClose={() => { setShowUpload(false); setRefreshKey(k => k + 1); }} />
+          </div>
+        </div>
       )}
 
       {/* Search */}
@@ -301,20 +305,27 @@ function UploadDialog({ userId, onClose }: { userId?: string; onClose: () => voi
 
   if (done) {
     return (
-      <div className="p-3 rounded border border-[#3FB950]/30 bg-[#3FB950]/5 space-y-2">
+      <div className="p-5 rounded-lg border border-[#2D333B] bg-[#161B22] shadow-2xl space-y-3">
+        <div className="flex items-center justify-between border-b border-[#2D333B] pb-2">
+          <h4 className="text-[11px] font-bold font-mono uppercase tracking-wider text-[#E3B341]">Share a Deck</h4>
+          <button onClick={onClose} className="text-[#8B949E] hover:text-white p-1 hover:bg-[#21262D] rounded transition-colors" title="Close"><XIcon size={14} /></button>
+        </div>
         <div className="flex items-center gap-2">
-          <Check size={14} className="text-[#3FB950]" />
-          <span className="text-[10px] font-mono font-bold text-[#3FB950]">Deck shared to community!</span>
+          <Check size={16} className="text-[#3FB950]" />
+          <span className="text-xs font-mono font-bold text-[#3FB950]">Deck shared to community!</span>
         </div>
         <button onClick={onClose}
-          className="text-[9px] font-mono text-[#8B949E] hover:text-white transition-colors cursor-pointer">Close</button>
+          className="w-full py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] transition-colors cursor-pointer">Done</button>
       </div>
     );
   }
 
   return (
-    <div className="p-3 rounded border border-[#E3B341]/30 bg-[#E3B341]/5 space-y-2.5 animate-fade-in">
-      <h4 className="text-[10px] font-bold font-mono uppercase tracking-wider text-[#E3B341]">Share a Deck</h4>
+    <div className="p-5 rounded-lg border border-[#2D333B] bg-[#161B22] shadow-2xl space-y-3 animate-fade-in">
+      <div className="flex items-center justify-between border-b border-[#2D333B] pb-2">
+        <h4 className="flex items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-[#E3B341]"><Upload size={12} /> Share a Deck</h4>
+        <button onClick={onClose} className="text-[#8B949E] hover:text-white p-1 hover:bg-[#21262D] rounded transition-colors" title="Close"><XIcon size={14} /></button>
+      </div>
       <p className="text-[9px] font-mono text-[#8B949E]">Enter the exact name of one of your decks to share it with the community.</p>
       <input type="text" value={title} onChange={e => setTitle(e.target.value)}
         placeholder="Deck name (must match existing deck exactly)"
@@ -326,13 +337,13 @@ function UploadDialog({ userId, onClose }: { userId?: string; onClose: () => voi
         placeholder="Tags: comma-separated (e.g. OSPF, Routing)"
         className="w-full px-2 py-1.5 rounded border border-[#30363D] bg-[#0D1117] text-[#E0E0E0] text-xs font-mono focus:outline-none focus:border-[#E3B341] placeholder-slate-600" />
       {error && <p className="text-[9px] font-mono text-[#F85149]">{error}</p>}
-      <div className="flex items-center gap-2">
+      <div className="flex justify-end items-center gap-2 pt-2 border-t border-[#2D333B]">
         <button onClick={handleUpload} disabled={uploading || !title.trim()}
-          className="px-3 py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] transition-colors cursor-pointer disabled:opacity-40">
+          className="px-4 py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] transition-colors cursor-pointer disabled:opacity-40">
           {uploading ? 'Uploading...' : 'Share'}
         </button>
         <button onClick={onClose}
-          className="px-3 py-1.5 rounded text-[9px] font-mono text-[#8B949E] hover:text-white border border-[#30363D] hover:bg-[#30363D] transition-colors cursor-pointer">
+          className="px-4 py-1.5 rounded text-[9px] font-mono text-[#8B949E] hover:text-white border border-[#30363D] hover:bg-[#30363D] transition-colors cursor-pointer">
           Cancel
         </button>
       </div>

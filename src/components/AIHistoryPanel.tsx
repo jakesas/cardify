@@ -1,16 +1,14 @@
 import { useState, useEffect, type FC } from 'react';
 import { listAiSessions, deleteAiSession, type AiSession } from '../db/queries';
 import type { GeneratedCard } from '../utils/groq';
-import { History, Trash2, RotateCcw, Wand2, Brain, ChevronDown, ChevronUp } from 'lucide-react';
+import { History, Trash2, RotateCcw, Brain, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface AIHistoryPanelProps {
-  onRestoreClean: (inputText: string, outputText: string) => void;
   onRestoreGenerate: (inputText: string, cards: GeneratedCard[], title: string) => void;
   refreshTrigger: number;
 }
 
 export const AIHistoryPanel: FC<AIHistoryPanelProps> = ({
-  onRestoreClean,
   onRestoreGenerate,
   refreshTrigger,
 }) => {
@@ -29,15 +27,11 @@ export const AIHistoryPanel: FC<AIHistoryPanelProps> = ({
   };
 
   const handleRestore = (session: AiSession) => {
-    if (session.sessionType === 'clean') {
-      onRestoreClean(session.inputText, session.outputText || session.inputText);
-    } else {
-      try {
-        const cards: GeneratedCard[] = session.cardsJson ? JSON.parse(session.cardsJson) : [];
-        onRestoreGenerate(session.inputText, cards, session.deckName || 'Restored Session');
-      } catch {
-        onRestoreGenerate(session.inputText, [], session.deckName || 'Restored Session');
-      }
+    try {
+      const cards: GeneratedCard[] = session.cardsJson ? JSON.parse(session.cardsJson) : [];
+      onRestoreGenerate(session.inputText, cards, session.deckName || 'Restored Session');
+    } catch {
+      onRestoreGenerate(session.inputText, [], session.deckName || 'Restored Session');
     }
     setIsOpen(false);
   };
@@ -81,15 +75,11 @@ export const AIHistoryPanel: FC<AIHistoryPanelProps> = ({
                   onClick={() => setExpandedId(isExpanded ? null : session.id)}
                 >
                   <div className="flex items-center space-x-2 min-w-0">
-                    {session.sessionType === 'clean' ? (
-                      <Wand2 size={11} className="text-[#8B949E] shrink-0" />
-                    ) : (
-                      <Brain size={11} className="text-[#E3B341] shrink-0" />
-                    )}
+                    <Brain size={11} className="text-[#E3B341] shrink-0" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-mono font-bold text-white">
-                          {session.sessionType === 'clean' ? 'OCR Clean' : `Generate · ${session.cardCount} cards`}
+                          Generate · {session.cardCount} cards
                         </span>
                         {session.deckName && (
                           <span className="text-[9px] font-mono text-[#388BFD] truncate max-w-[120px]">→ {session.deckName}</span>
@@ -129,15 +119,6 @@ export const AIHistoryPanel: FC<AIHistoryPanelProps> = ({
                         {session.inputText}
                       </pre>
                     </div>
-
-                    {session.sessionType === 'clean' && session.outputText && (
-                      <div className="space-y-1">
-                        <p className="text-[9px] font-mono font-bold text-[#8B949E] uppercase tracking-wider">Cleaned Output</p>
-                        <pre className="text-[10px] font-mono text-[#3FB950] whitespace-pre-wrap bg-[#161B22] border border-[#3FB950]/20 rounded p-2 max-h-32 overflow-y-auto">
-                          {session.outputText}
-                        </pre>
-                      </div>
-                    )}
 
                     {session.sessionType === 'generate' && session.cardsJson && (
                       <div className="space-y-1">
