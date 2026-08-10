@@ -21,7 +21,7 @@ import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import { LibraryScreen } from './components/LibraryScreen';
 import logoSrc from '/logo.png';
-import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save, ArrowLeft } from 'lucide-react';
+import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save, ArrowLeft, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreen } from './components/AuthScreen';
 import { ManageDataMenu, type SyncStatus } from './components/ManageDataMenu';
@@ -54,6 +54,16 @@ function AppInner() {
   const [pendingShareDeckId, setPendingShareDeckId] = useState<string | null>(null);
   const [groupUploadGroupId, setGroupUploadGroupId] = useState<string | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [sectionLoading, setSectionLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'ai' || activeTab === 'stats') {
+      setSectionLoading(true);
+      const t = setTimeout(() => setSectionLoading(false), 600);
+      return () => clearTimeout(t);
+    }
+    setSectionLoading(false);
+  }, [activeTab]);
 
   // Initialize database and load data — scoped per user
   useEffect(() => {
@@ -908,23 +918,37 @@ function AppInner() {
           )}
 
           {activeTab === 'stats' && (
-            <StatsScreen
-              cards={cards}
-              history={history}
-              streakDays={streakDays}
-            />
+            sectionLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 space-y-3 animate-fade-in" aria-label="Loading stats">
+                <Loader2 size={28} className="animate-spin text-[#E3B341]" />
+                <p className="text-xs font-mono text-[#8B949E]">Loading Stats...</p>
+              </div>
+            ) : (
+              <StatsScreen
+                cards={cards}
+                history={history}
+                streakDays={streakDays}
+              />
+            )
           )}
 
           {activeTab === 'ai' && (
-            <AIGeneratorScreen
-              decks={decks}
-              onAddCard={handleAddCard}
-              onUpdateDeck={async (id, material) => {
-                const { updateDeckStudyMaterial } = await import('./db/queries');
-                await updateDeckStudyMaterial(id, material);
-                setDecks(decks.map(d => d.id === id ? { ...d, studyMaterial: material } : d));
-              }}
-            />
+            sectionLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 space-y-3 animate-fade-in" aria-label="Loading A.I. Flashcard Generator">
+                <Loader2 size={28} className="animate-spin text-[#E3B341]" />
+                <p className="text-xs font-mono text-[#8B949E]">Loading A.I. Flashcard Generator...</p>
+              </div>
+            ) : (
+              <AIGeneratorScreen
+                decks={decks}
+                onAddCard={handleAddCard}
+                onUpdateDeck={async (id, material) => {
+                  const { updateDeckStudyMaterial } = await import('./db/queries');
+                  await updateDeckStudyMaterial(id, material);
+                  setDecks(decks.map(d => d.id === id ? { ...d, studyMaterial: material } : d));
+                }}
+              />
+            )
           )}
         </main>
 

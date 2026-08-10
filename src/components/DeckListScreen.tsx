@@ -33,6 +33,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   const [newDeckDesc, setNewDeckDesc] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [overflowMenuDeckId, setOverflowMenuDeckId] = useState<string | null>(null);
+  const [overflowMenuPos, setOverflowMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [renameDeckId, setRenameDeckId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -342,7 +343,22 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
 
                       <div className="relative">
                         <button
-                          onClick={() => setOverflowMenuDeckId(showOverflow ? null : deck.id)}
+                          onClick={(e) => {
+                            if (showOverflow) {
+                              setOverflowMenuDeckId(null);
+                              return;
+                            }
+// Position menu via fixed coords so it's never clipped by
+// the card's overflow-hidden or the scroll container.
+const rect = e.currentTarget.getBoundingClientRect();
+const MENU_H = 210;
+const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
+                            const fitsAbove = rect.top >= MENU_H;
+                            const top = fitsBelow || !fitsAbove ? rect.bottom + 4 : rect.top - MENU_H;
+                            const left = Math.max(4, Math.min(rect.left, window.innerWidth - 184));
+                            setOverflowMenuPos({ top, left });
+                            setOverflowMenuDeckId(deck.id);
+                          }}
                           className="flex items-center justify-center min-w-[36px] min-h-[36px] rounded text-[#8B949E] hover:text-white hover:bg-[#30363D] transition-colors cursor-pointer"
                           title="More actions"
                         >
@@ -352,7 +368,10 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                         {showOverflow && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setOverflowMenuDeckId(null)} />
-                            <div className="absolute left-0 bottom-full mb-1 z-50 w-44 rounded border border-[#2D333B] bg-[#161B22] shadow-2xl overflow-hidden">
+                            <div
+                              className="fixed z-50 w-44 rounded border border-[#2D333B] bg-[#161B22] shadow-2xl overflow-hidden"
+                              style={{ top: overflowMenuPos?.top ?? 0, left: overflowMenuPos?.left ?? 0 }}
+                            >
                               <button
                                 onClick={() => { onSelectDeck(deck.id, 'quiz'); setOverflowMenuDeckId(null); }}
                                 className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
