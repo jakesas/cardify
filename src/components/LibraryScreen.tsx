@@ -648,10 +648,10 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   }[readerTheme];
 
   return (
-    <div className="animate-fade-in max-w-6xl mx-auto flex flex-col h-[calc(100dvh-130px)] md:h-[calc(100vh-80px)] gap-4">
+    <div className="animate-fade-in max-w-6xl mx-auto flex flex-col h-[calc(100dvh-130px)] md:h-[calc(100vh-80px)] gap-3">
       {/* Header Banner */}
       <div
-        className="relative overflow-hidden rounded-2xl border p-4 sm:p-6 flex-shrink-0"
+        className="relative overflow-hidden rounded-2xl border p-3 sm:p-5 flex-shrink-0"
         style={{
           background: 'linear-gradient(135deg, #161B22 0%, #0D1117 100%)',
           borderColor: '#2D333B',
@@ -660,9 +660,9 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       >
         <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 rounded-full bg-[#E3B341]/5 blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/30">
                 <Globe size={11} /> Public Repository
               </span>
@@ -671,12 +671,12 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
               </span>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <BookOpen className="text-[#E3B341]" size={24} />
+            <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight flex items-center gap-2 leading-tight">
+              <BookOpen className="text-[#E3B341] shrink-0" size={20} />
               Public Study Library
             </h1>
 
-            <p className="text-xs sm:text-sm text-[#8B949E] max-w-xl leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-[#8B949E] max-w-xl leading-snug line-clamp-2 text-balance">
               Explore and share study notes, textbook summaries, Word documents, and PDFs.
               Read any resource in our immersive reader or import it into your study deck.
             </p>
@@ -685,7 +685,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
             <button
               onClick={() => setShowLibrarian(true)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-[#E3B341] transition-all cursor-pointer border border-[#E3B341]/40 hover:bg-[#E3B341]/10 w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-[#E3B341] transition-all cursor-pointer border border-[#E3B341]/40 hover:bg-[#E3B341]/10 w-full sm:w-auto"
               title="Ask the AI librarian for study help, recommendations, or summaries"
             >
               <Bot size={15} />
@@ -696,26 +696,26 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#161B22] p-3 rounded-xl border border-[#2D333B] flex-shrink-0">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-[#161B22] p-2.5 rounded-xl border border-[#2D333B] flex-shrink-0">
         {/* Search Input */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B949E]" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search by title, subject, tags, or author..."
-            className="w-full bg-[#0D1117] border border-[#30363D] rounded-lg pl-9 pr-4 py-2 text-xs font-mono text-[#E0E0E0] focus:outline-none focus:border-[#E3B341] placeholder-[#484F58]"
+            className="w-full min-w-0 bg-[#0D1117] border border-[#30363D] rounded-lg pl-9 pr-4 py-1.5 text-xs font-mono text-[#E0E0E0] focus:outline-none focus:border-[#E3B341] placeholder-[#484F58] placeholder:whitespace-nowrap placeholder:overflow-hidden placeholder:text-ellipsis"
           />
         </div>
 
         {/* Filter Dropdown + Upload */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {/* Subject Filter */}
           <select
             value={selectedSubject}
             onChange={e => setSelectedSubject(e.target.value)}
-            className="bg-[#0D1117] border border-[#30363D] text-[#8B949E] text-xs font-mono rounded-lg px-3 py-2 focus:outline-none focus:border-[#E3B341] cursor-pointer"
+            className="bg-[#0D1117] border border-[#30363D] text-[#8B949E] text-xs font-mono rounded-lg px-3 py-1.5 min-w-0 flex-1 sm:flex-none focus:outline-none focus:border-[#E3B341] cursor-pointer"
             aria-label="Filter by subject"
           >
             {['All', 'Communication', 'IT & Systems', 'Computer Science', 'Mathematics', 'Science', 'Business', 'General'].map(sub => (
@@ -726,7 +726,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
           {/* Upload Document */}
           <button
             onClick={() => setShowUploadModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 flex-shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#0F1115] transition-all cursor-pointer shadow-lg hover:brightness-110 flex-shrink-0 whitespace-nowrap border border-transparent"
             style={{
               background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
               boxShadow: '0 0 20px rgba(227, 179, 65, 0.3)',
@@ -773,7 +773,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
               >
                 {/* Accent Top Strip */}
                 <div
-                  className="absolute top-0 left-0 right-0 h-1 transition-all duration-300 group-hover:h-1.5"
+                  className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl transition-all duration-300 group-hover:h-1.5"
                   style={{ background: '#E3B341' }}
                 />
 
@@ -790,7 +790,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                     </span>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 bg-[#0D1117] text-[#8B949E] border border-[#30363D] rounded-md">
+                      <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 bg-[#0D1117] text-[#C9D1D9] border border-[#30363D] rounded-md">
                         {item.fileType.toUpperCase()}
                       </span>
                       {isOwner && (
@@ -862,8 +862,8 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                 </div>
 
                 {/* Footer metadata */}
-                <div className="mt-5 pt-3.5 border-t border-[#2D333B] flex items-center justify-between text-[10px] font-mono text-[#8B949E]">
-                  <div className="flex items-center gap-3">
+                <div className="mt-4 pt-3 border-t border-[#2D333B] flex items-center justify-between text-[10px] font-mono text-[#8B949E]">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <span className="flex items-center gap-1" title="Views">
                       <Eye size={12} className="text-[#E3B341]" /> {item.views || 0}
                     </span>
@@ -875,7 +875,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
                     </span>
                   </div>
 
-                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#E3B341] group-hover:translate-x-1 transition-transform">
+                  <span className="inline-flex items-center gap-1 pl-3 text-[10px] font-mono font-bold text-[#E3B341] group-hover:translate-x-1 transition-transform">
                     <span>Read</span>
                     <ChevronRight size={12} />
                   </span>
