@@ -194,15 +194,22 @@ function getUserCollections(uid: string) {
 async function pullRemoteChanges(uid: string): Promise<void> {
   const cols = getUserCollections(uid);
 
-  // Get last sync timestamp
-  const syncStateDoc = await getDoc(cols.syncState);
-  const lastSync = syncStateDoc.exists() ? syncStateDoc.data()?.lastIncrementalSyncAt : null;
-  const lastSyncTime = lastSync ? new Date(lastSync).getTime() : 0;
-  // Firestore timestamp for the query (fallback to early date if no full sync)
-  const queryDate = lastSync ? new Date(lastSyncTime).toISOString() : new Date(0).toISOString();
+  // Per-device pull cursor (local settings). The old code read the SHARED
+  // user-doc watermark, which every sync advanced past freshly-pushed entities
+  // — the strict `>` query then skipped them forever (deck created on Desktop
+  // never appeared on the phone). Each device now queries from its OWN cursor.
+  const lastSync = await getSetting('sync:lastIncrementalSyncAt');
+  const queryDate = lastSync ? new Date(lastSync).toISOString() : new Date(0).toISOString();
+
+  // One-time full re-import: entities stranded by the old watermark bug have
+  // updatedAt older than any cursor, so incremental pulls can never catch them.
+  const DATA_VERSION = 'v2';
+  const needsFullPull = (await getSetting('sync:pullVersion')) !== DATA_VERSION;
 
   // 1. Pull Decks
-  const decksQuery = query(cols.decks, where('updatedAt', '>', queryDate));
+  const decksQuery = needsFullPull
+    ? query(cols.decks)
+    : query(cols.decks, where('updatedAt', '>', queryDate));
   const decksSnap = await getDocs(decksQuery);
   for (const docSnap of decksSnap.docs) {
     const remote = docSnap.data() as any;
@@ -212,7 +219,9 @@ async function pullRemoteChanges(uid: string): Promise<void> {
   }
 
   // 2. Pull Cards
-  const cardsQuery = query(cols.cards, where('updatedAt', '>', queryDate));
+  const cardsQuery = needsFullPull
+    ? query(cols.cards)
+    : query(cols.cards, where('updatedAt', '>', queryDate));
   const cardsSnap = await getDocs(cardsQuery);
   for (const docSnap of cardsSnap.docs) {
     const remote = docSnap.data() as any;
@@ -223,7 +232,9 @@ async function pullRemoteChanges(uid: string): Promise<void> {
 
   // 3. Pull Reviews
   // Note: we fetch reviews based on timestamp instead of updatedAt
-  const reviewsQuery = query(cols.reviews, where('timestamp', '>', queryDate));
+  const reviewsQuery = needsFullPull
+    ? query(cols.reviews)
+    : query(cols.reviews, where('timestamp', '>', queryDate));
   const reviewsSnap = await getDocs(reviewsQuery);
   for (const docSnap of reviewsSnap.docs) {
     const remote = docSnap.data() as any;
@@ -238,6 +249,11 @@ async function pullRemoteChanges(uid: string): Promise<void> {
       nextEaseFactor: remote.nextEaseFactor,
     };
     await syncReview(review);
+  }
+
+  // Conditional on success: a failed full pull leaves the version unset so the next sync retries.
+  if (needsFullPull) {
+    await setSetting('sync:pullVersion', DATA_VERSION);
   }
 }
 
