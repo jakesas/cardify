@@ -1,23 +1,41 @@
-import { getDb } from '../db/client';
+// Backup & restore, Firestore-backed.
+//
+// The database is now Firestore, so a backup is a JSON snapshot of the user's
+// collections stored in the `backup:*` settings documents. Restore wipes the
+// Firestore collections (via queries.clearAllUserData) and re-inserts every
+// entity through the queries helpers (insertDeck/createCard/addReviewHistory/
+// saveAiSession/setSetting), remapping old ids to the new Firestore doc ids.
+//
+// Snapshots produced before the Firebase rewrite stored legacy snake_case rows
+// (deck_id, ease_factor, ...); restore still reads those fields so old backups
+// remain restorable.
+
 import {
   listDecks,
   getAllCards,
   getAllReviews,
   listAiSessions,
+  getAllSettings,
   getSetting,
   setSetting,
+  insertDeck,
+  createCard,
+  updateCard,
+  addReviewHistory,
+  saveAiSession,
+  clearAllUserData,
 } from '../db/queries';
-import { isTauri } from '@tauri-apps/api/core';
+import { NetworkTopology } from '../types';
 
 export interface BackupSnapshot {
   version: number;
   createdAt: string;
   reason: string;
-  decks: any[];
-  cards: any[];
-  reviews: any[];
+  decks: RestorableDeck[];
+  cards: RestorableCard[];
+  reviews: RestorableReview[];
   settings: Array<{ key: string; value: string }>;
-  aiSessions: any[];
+  aiSessions: RestorableAiSession[];
 }
 
 export interface BackupMeta {
@@ -28,9 +46,109 @@ export interface BackupMeta {
   reviews: number;
 }
 
+// Entity shapes that both current (camelCase) and legacy (snake_case)
+// snapshots satisfy, so restore can read either.
+interface RestorableDeck {
+  id?: string | number;
+  name?: string;
+  description?: string | null;
+  studyMaterial?: string;
+  study_material?: string;
+  createdAt?: string;
+  created_at?: string;
+}
+
+interface RestorableCard {
+  id?: string | number;
+  deckId?: string | number;
+  deck_id?: string | number;
+  cardType?: string;
+  card_type?: string;
+  front?: string;
+  back?: string;
+  tag?: string;
+  imagePath?: string;
+  image_path?: string;
+  codeSnippet?: string | { code: string; language: string };
+  code_snippet?: string;
+  topology?: unknown;
+  bookmarked?: boolean | number;
+  reps?: number;
+  interval?: number;
+  interval_days?: number;
+  easeFactor?: number;
+  ease_factor?: number;
+  dueDate?: string;
+  due_date?: string;
+  lastReviewedAt?: string;
+  last_reviewed_at?: string;
+}
+
+interface RestorableReview {
+  id?: string | number;
+  cardId?: string | number;
+  card_id?: string | number;
+  rating?: number;
+  timestamp?: string;
+  reviewed_at?: string;
+  previousInterval?: number;
+  prev_interval?: number;
+  nextInterval?: number;
+  new_interval?: number;
+  previousEaseFactor?: number;
+  prev_ease?: number;
+  nextEaseFactor?: number;
+  new_ease?: number;
+}
+
+interface RestorableAiSession {
+  id?: string | number;
+  sessionType?: string;
+  session_type?: string;
+  inputText?: string;
+  input_text?: string;
+  outputText?: string | null;
+  output_text?: string | null;
+  cardsJson?: string | null;
+  cards_json?: string | null;
+  deckName?: string | null;
+  deck_name?: string | null;
+  cardCount?: number;
+  card_count?: number;
+  createdAt?: string;
+  created_at?: string;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function todayStr(): string {
+  return nowIso().split('T')[0];
+}
+
+/** First defined (non-null) value among legacy/current field spellings. */
+function first<T>(...values: Array<T | null | undefined>): T | undefined {
+  for (const value of values) {
+    if (value !== null && value !== undefined) return value;
+  }
+  return undefined;
+}
+
+/** Legacy rows stored code_snippet/topology as JSON strings; current store objects. */
+function coerceJson(value: unknown): unknown {
+  if (typeof value === 'string' && value !== '') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+  return value;
+}
+
 /**
- * Create a full snapshot of all user data tables.
- * Works in both Tauri (SQLite) and browser (IndexedDB) modes.
+ * Create a full snapshot of all user data (Firestore collections).
  */
 export async function createBackupSnapshot(reason = 'manual'): Promise<BackupSnapshot> {
   const [decks, cards, reviews, aiSessions, settings] = await Promise.all([
@@ -38,30 +156,26 @@ export async function createBackupSnapshot(reason = 'manual'): Promise<BackupSna
     getAllCards(),
     getAllReviews(),
     listAiSessions(),
-    getDb().then((db) =>
-      db.select<{ key: string; value: string }[]>('SELECT key, value FROM settings')
-    ),
+    getAllSettings(),
   ]);
 
   // Filter out backup keys from settings to avoid recursion on restore
-  const filteredSettings = (settings || []).filter(
-    (s) => !s.key.startsWith('backup:')
-  );
+  const filteredSettings = settings.filter((s) => !s.key.startsWith('backup:'));
 
   return {
     version: 1,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(),
     reason,
-    decks: decks || [],
-    cards: cards || [],
-    reviews: reviews || [],
+    decks: decks ?? [],
+    cards: cards ?? [],
+    reviews: reviews ?? [],
     settings: filteredSettings,
-    aiSessions: aiSessions || [],
+    aiSessions: aiSessions ?? [],
   };
 }
 
 /**
- * Save a snapshot in the settings table (works in both engines).
+ * Save a snapshot in the settings collection (Firestore).
  * Keeps the latest snapshot and a rolling history (max 20).
  */
 export async function saveBackupInDb(snapshot: BackupSnapshot): Promise<void> {
@@ -92,7 +206,7 @@ export async function getLatestBackup(): Promise<BackupSnapshot | null> {
   const raw = await getSetting('backup:latest');
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    return JSON.parse(raw) as BackupSnapshot;
   } catch {
     return null;
   }
@@ -105,162 +219,126 @@ export async function listBackups(): Promise<BackupMeta[]> {
   const raw = await getSetting('backup:history');
   if (!raw) return [];
   try {
-    return JSON.parse(raw);
+    return JSON.parse(raw) as BackupMeta[];
   } catch {
     return [];
   }
 }
 
 /**
- * Try to write the snapshot to a JSON file in the app data directory.
- * Only works in Tauri mode; silently falls back if fs plugin or scope denies.
- */
-export async function writeBackupToFile(snapshot: BackupSnapshot): Promise<string | null> {
-  if (!isTauri()) return null;
-
-  try {
-    const { appDataDir } = await import('@tauri-apps/api/path');
-    const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs');
-    const dir = await appDataDir();
-    const backupsDir = `${dir}backups`;
-    await mkdir(backupsDir, { recursive: true });
-
-    const ts = snapshot.createdAt.replace(/[:.]/g, '-');
-    const filename = `ccna-srs-backup-${ts}.json`;
-    // Use forward slash; tauri-plugin-fs on Windows handles it
-    const filePath = `${backupsDir}/${filename}`;
-
-    await writeTextFile(filePath, JSON.stringify(snapshot, null, 2));
-    console.log(`[Backup] Written to file: ${filePath}`);
-    return filePath;
-  } catch (e) {
-    console.warn('[Backup] File export failed (scope or fs error):', e);
-    return null;
-  }
-}
-
-/**
- * Create a backup and persist it (in-DB + optional file).
+ * Create a backup and persist it in Firestore settings.
  */
 export async function createBackup(reason = 'manual'): Promise<BackupSnapshot> {
   const snapshot = await createBackupSnapshot(reason);
   await saveBackupInDb(snapshot);
-  await writeBackupToFile(snapshot); // best-effort file export
   return snapshot;
 }
 
 /**
  * Restore all user data from a snapshot.
- * Re-inserts decks (mapping old IDs → new), then cards with SM-2 state,
- * then reviews (remapping card IDs).
+ * Wipes the Firestore collections, then re-inserts decks (mapping old IDs →
+ * new Firestore doc IDs), cards with full SM-2 state, reviews (remapping card
+ * IDs), AI sessions and settings.
  */
 export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<{
   decks: number;
   cards: number;
   reviews: number;
 }> {
-  const db = await getDb();
+  // 1) Wipe in FK order
+  await clearAllUserData();
 
-  // 1) Wipe in correct FK order
-  await db.execute('DELETE FROM reviews');
-  await db.execute('DELETE FROM cards');
-  await db.execute('DELETE FROM decks');
+  const decks = snapshot.decks ?? [];
+  const cards = snapshot.cards ?? [];
+  const reviews = snapshot.reviews ?? [];
+  const aiSessions = snapshot.aiSessions ?? [];
+  const settings = snapshot.settings ?? [];
 
   // 2) Re-insert decks, build oldId → newId map
-  const deckIdMap = new Map<number, number>();
-  for (const d of snapshot.decks) {
-    const r = await db.execute(
-      `INSERT INTO decks (name, description, created_at, study_material)
-       VALUES (?, ?, ?, ?)`,
-      [d.name, d.description ?? null, d.created_at ?? new Date().toISOString(), d.study_material ?? null]
+  const deckIdMap = new Map<string, string>();
+  for (const d of decks) {
+    if (!d || d.id == null) continue;
+    const created = await insertDeck(
+      d.name ?? 'Restored deck',
+      d.description ?? '',
+      first(d.studyMaterial, d.study_material),
+      first(d.createdAt, d.created_at)
     );
-    const newId = Number(r.lastInsertId);
-    deckIdMap.set(Number(d.id), newId);
+    deckIdMap.set(String(d.id), created.id);
   }
 
   // 3) Re-insert cards with full SM-2 state, mapping deck_id
-  const cardIdMap = new Map<number, number>();
-  for (const c of snapshot.cards) {
-    const newDeckId = deckIdMap.get(Number(c.deck_id));
+  const cardIdMap = new Map<string, string>();
+  for (const c of cards) {
+    if (!c) continue;
+    const oldDeckId = first(c.deckId, c.deck_id);
+    const newDeckId = oldDeckId == null ? undefined : deckIdMap.get(String(oldDeckId));
     if (!newDeckId) continue; // skip orphaned cards
-    const r = await db.execute(
-      `INSERT INTO cards (
-         deck_id, card_type, front, back, tag, image_path, code_snippet, topology,
-         ease_factor, interval_days, reps, due_date, last_reviewed_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [
-        newDeckId,
-        c.card_type ?? 'basic',
-        c.front ?? '',
-        c.back ?? '',
-        c.tag ?? null,
-        c.image_path ?? null,
-        c.code_snippet ? JSON.stringify(c.code_snippet) : null,
-        c.topology ? JSON.stringify(c.topology) : null,
-        c.ease_factor ?? 2.5,
-        c.interval_days ?? 0,
-        c.reps ?? 0,
-        c.due_date ?? new Date().toISOString().split('T')[0],
-        c.last_reviewed_at ?? null,
-      ]
-    );
-    cardIdMap.set(Number(c.id), Number(r.lastInsertId));
+
+    const created = await createCard({
+      deckId: newDeckId,
+      cardType: (c.cardType ?? c.card_type) === 'cloze' ? 'cloze' : 'basic',
+      front: c.front ?? '',
+      back: c.back ?? '',
+      tag: c.tag ?? '',
+      imagePath: first(c.imagePath, c.image_path),
+      codeSnippet: coerceJson(first(c.codeSnippet, c.code_snippet)) as { code: string; language: string } | undefined,
+      topology: coerceJson(c.topology) as NetworkTopology | undefined,
+    });
+
+    if (c.id != null) cardIdMap.set(String(c.id), created.id);
+
+    await updateCard(created.id, {
+      bookmarked: c.bookmarked === true || c.bookmarked === 1,
+      reps: first(c.reps, 0) ?? 0,
+      interval: first(c.interval, c.interval_days, 0) ?? 0,
+      easeFactor: first(c.easeFactor, c.ease_factor, 2.5) ?? 2.5,
+      dueDate: first(c.dueDate, c.due_date, todayStr()) ?? '',
+      lastReviewedAt: first(c.lastReviewedAt, c.last_reviewed_at),
+    });
   }
 
   // 4) Re-insert reviews with mapped card_id
-  for (const rv of snapshot.reviews) {
-    const newCardId = cardIdMap.get(Number(rv.card_id));
+  for (const rv of reviews) {
+    if (!rv) continue;
+    const oldCardId = first(rv.cardId, rv.card_id);
+    const newCardId = oldCardId == null ? undefined : cardIdMap.get(String(oldCardId));
     if (!newCardId) continue;
-    await db.execute(
-      `INSERT INTO reviews (card_id, rating, reviewed_at, prev_interval, new_interval, prev_ease, new_ease)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        newCardId,
-        rv.rating,
-        rv.reviewed_at,
-        rv.prev_interval,
-        rv.new_interval,
-        rv.prev_ease,
-        rv.new_ease,
-      ]
-    );
+    await addReviewHistory({
+      cardId: newCardId,
+      rating: first(rv.rating, 0) ?? 0,
+      timestamp: first(rv.timestamp, rv.reviewed_at, nowIso()) ?? '',
+      previousInterval: first(rv.previousInterval, rv.prev_interval, 0) ?? 0,
+      nextInterval: first(rv.nextInterval, rv.new_interval, 0) ?? 0,
+      previousEaseFactor: first(rv.previousEaseFactor, rv.prev_ease, 2.5) ?? 2.5,
+      nextEaseFactor: first(rv.nextEaseFactor, rv.new_ease, 2.5) ?? 2.5,
+    });
   }
 
-  // 5) Restore ai_sessions (deck_id set to NULL — historical link lost, but content preserved)
-  for (const s of snapshot.aiSessions) {
-    await getDb().then((db) =>
-      db.execute(
-        `INSERT INTO ai_sessions (session_type, input_text, output_text, cards_json, deck_id, deck_name, card_count, created_at)
-         VALUES (?, ?, ?, ?, NULL, ?, ?, ?)`,
-        [
-          s.session_type,
-          s.input_text,
-          s.output_text ?? null,
-          s.cards_json ?? null,
-          s.deck_name ?? null,
-          s.card_count ?? 0,
-          s.created_at,
-        ]
-      )
-    );
+  // 5) Re-insert AI sessions (deck link intentionally dropped — ids changed)
+  for (const s of aiSessions) {
+    if (!s) continue;
+    await saveAiSession({
+      sessionType: (s.sessionType ?? s.session_type) === 'generate' ? 'generate' : 'clean',
+      inputText: first(s.inputText, s.input_text, '') ?? '',
+      outputText: first(s.outputText, s.output_text),
+      cardsJson: first(s.cardsJson, s.cards_json),
+      deckName: first(s.deckName, s.deck_name),
+      cardCount: first(s.cardCount, s.card_count, 0) ?? 0,
+    });
   }
 
-  // 5) Restore settings (excluding backup keys to avoid loops)
-  for (const s of snapshot.settings) {
+  // 6) Restore settings (excluding backup keys to avoid loops)
+  for (const s of settings) {
+    if (!s || typeof s.key !== 'string') continue;
     if (s.key.startsWith('backup:')) continue;
-    await getDb().then((db) =>
-      db.execute(
-        `INSERT INTO settings (key, value) VALUES (?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-        [s.key, s.value]
-      )
-    );
+    await setSetting(s.key, typeof s.value === 'string' ? s.value : JSON.stringify(s.value ?? ''));
   }
 
   return {
-    decks: snapshot.decks.length,
-    cards: snapshot.cards.length,
-    reviews: snapshot.reviews.length,
+    decks: decks.length,
+    cards: cards.length,
+    reviews: reviews.length,
   };
 }
 
@@ -283,7 +361,7 @@ export async function restoreLatestBackup(): Promise<{
  * Also runs before schema migrations and before destructive reset.
  */
 export async function maybeAutoBackup(reason = 'auto-startup'): Promise<boolean> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayStr();
   const lastAuto = await getSetting('backup:last-auto-date');
   if (lastAuto === today) return false; // already backed up today
 
@@ -306,6 +384,5 @@ export async function backupBeforeDestructive(reason: string): Promise<boolean> 
     return false;
   }
   await saveBackupInDb(snapshot);
-  await writeBackupToFile(snapshot);
   return true;
 }

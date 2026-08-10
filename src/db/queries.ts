@@ -1,75 +1,243 @@
-import { getDb } from './client';
-import { Deck, Card, ReviewHistory } from '../types';
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
+  onSnapshot,
+  type Firestore,
+  type CollectionReference,
+  type Query,
+  type QueryDocumentSnapshot,
+  type Unsubscribe,
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { Deck, Card, ReviewHistory, NetworkTopology } from '../types';
 import { calculateSM2, getLocalDateString } from '../utils/sm2';
+import {
+  toFirestoreDeck,
+  toFirestoreCard,
+  toFirestoreReview,
+  SYNC_COLLECTIONS,
+  FirestoreDeck,
+  FirestoreCard,
+  FirestoreReview,
+} from '../utils/syncTypes';
 
-function mapRowToDeck(row: any): Deck {
+let _fs: Firestore | null = null;
+
+function getFs(): Firestore {
+  if (!_fs) {
+    const auth = getAuth();
+    if (!auth.app) throw new Error('Firebase not initialized');
+    _fs = getFirestore(auth.app);
+  }
+  return _fs;
+}
+
+let currentUid: string | null = null;
+
+/** Call when the auth user changes. All Firestore reads/writes are scoped to this uid. */
+export function setDbUser(userId: string | null): void {
+  currentUid = userId;
+}
+
+function uid(): string {
+  if (!currentUid) throw new Error('No user session — call setDbUser() first');
+  return currentUid;
+}
+
+export interface UserCollections {
+  decks: CollectionReference<FirestoreDeck>;
+  cards: CollectionReference<FirestoreCard>;
+  reviews: CollectionReference<FirestoreReview>;
+  settings: CollectionReference<{ value: string; updatedAt?: string }>;
+  aiSessions: CollectionReference<AiSession>;
+}
+
+export function userCollections(u: string): UserCollections {
+  const fs = getFs();
   return {
-    id: String(row.id),
-    name: row.name,
-    description: row.description,
-    studyMaterial: row.study_material,
-    createdAt: row.created_at,
+    decks: collection(fs, SYNC_COLLECTIONS.decks(u)) as CollectionReference<FirestoreDeck>,
+    cards: collection(fs, SYNC_COLLECTIONS.cards(u)) as CollectionReference<FirestoreCard>,
+    reviews: collection(fs, SYNC_COLLECTIONS.reviews(u)) as CollectionReference<FirestoreReview>,
+    settings: collection(fs, SYNC_COLLECTIONS.settings(u)) as CollectionReference<{ value: string; updatedAt?: string }>,
+    aiSessions: collection(fs, SYNC_COLLECTIONS.aiSessions(u)) as CollectionReference<AiSession>,
+  };
+}
+
+function cols(u: string): UserCollections {
+  return userCollections(u);
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function todayStr(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function sortByDesc<T>(items: T[], pick: (t: T) => string | undefined): T[] {
+  return [...items].sort((a, b) => (pick(b) ?? '').localeCompare(pick(a) ?? ''));
+}
+
+export function toDeck(snap: QueryDocumentSnapshot<FirestoreDeck>): Deck {
+  const d = snap.data();
+  return {
+    id: snap.id,
+    name: d.name,
+    description: d.description ?? '',
+    studyMaterial: d.studyMaterial,
+    createdAt: d.createdAt,
+  };
+}
+
+export function toCard(snap: QueryDocumentSnapshot<FirestoreCard>): Card {
+  const d = snap.data();
+  return {
+    id: snap.id,
+    deckId: String(d.deckId),
+    cardType: d.cardType ?? 'basic',
+    front: d.front ?? '',
+    back: d.back ?? '',
+    tag: d.tag ?? '',
+    imagePath: d.imagePath,
+    codeSnippet: d.codeSnippet,
+    topology: d.topology,
+    bookmarked: d.bookmarked === true,
+    reps: d.reps ?? 0,
+    interval: d.interval ?? 0,
+    easeFactor: d.easeFactor ?? 2.5,
+    dueDate: d.dueDate ?? '',
+    lastReviewedAt: d.lastReviewedAt,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
+  };
+}
+
+export function toReview(snap: QueryDocumentSnapshot<FirestoreReview>): ReviewHistory {
+  const d = snap.data();
+  return {
+    id: snap.id,
+    cardId: String(d.cardId),
+    rating: d.rating,
+    timestamp: d.timestamp,
+    previousInterval: d.previousInterval,
+    nextInterval: d.nextInterval,
+    previousEaseFactor: d.previousEaseFactor,
+    nextEaseFactor: d.nextEaseFactor,
   };
 }
 
 export async function listDecks(): Promise<Deck[]> {
-  const db = await getDb();
-  const rows = await db.select<any[]>('SELECT * FROM decks ORDER BY created_at DESC');
-  return rows.map(mapRowToDeck);
+  const snap = await getDocs(query(cols(uid()).decks));
+  return sortByDesc(snap.docs.map(toDeck), (d) => d.createdAt);
 }
 
 export async function createDeck(name: string, description?: string): Promise<Deck> {
-  const db = await getDb();
-  const result = await db.select<any[]>(
-    'INSERT INTO decks (name, description, created_at) VALUES (?, ?, datetime(\'now\')) RETURNING *',
-    [name, description ?? null]
-  );
-  return mapRowToDeck(result[0]);
+  const c = cols(uid());
+  const ref = doc(c.decks);
+  const now = nowIso();
+  const deck: Deck = { id: ref.id, name, description: description ?? '', createdAt: now };
+  await setDoc(ref, toFirestoreDeck(deck, 'web'));
+  return deck;
+}
+
+export async function insertDeck(
+  name: string,
+  description: string,
+  studyMaterial?: string,
+  createdAt?: string
+): Promise<Deck> {
+  const c = cols(uid());
+  const ref = doc(c.decks);
+  const now = nowIso();
+  const deck: Deck = {
+    id: ref.id,
+    name,
+    description,
+    studyMaterial,
+    createdAt: createdAt ?? now,
+  };
+  await setDoc(ref, toFirestoreDeck(deck, 'web'));
+  return deck;
 }
 
 export async function updateDeckName(deckId: string, name: string): Promise<Deck> {
-  const db = await getDb();
-  const rows = await db.select<any[]>(
-    'UPDATE decks SET name = ? WHERE id = ? RETURNING *',
-    [name, Number(deckId)]
-  );
-  return mapRowToDeck(rows[0]);
+  const c = cols(uid());
+  const ref = doc(c.decks, deckId);
+  const existing = await getDoc(ref);
+  if (!existing.exists()) throw new Error('Deck not found');
+  await updateDoc(ref, { name, updatedAt: nowIso() });
+  const updated = await getDoc(ref);
+  if (!updated.exists()) throw new Error('Deck not found');
+  return toDeck(updated);
 }
 
 export async function updateDeckStudyMaterial(deckId: string, material: string): Promise<Deck> {
-  const db = await getDb();
-  const rows = await db.select<any[]>(
-    'UPDATE decks SET study_material = ? WHERE id = ? RETURNING *',
-    [material, Number(deckId)]
-  );
-  return mapRowToDeck(rows[0]);
+  const c = cols(uid());
+  const ref = doc(c.decks, deckId);
+  const existing = await getDoc(ref);
+  if (!existing.exists()) throw new Error('Deck not found');
+  await updateDoc(ref, { studyMaterial: material, updatedAt: nowIso() });
+  const updated = await getDoc(ref);
+  if (!updated.exists()) throw new Error('Deck not found');
+  return toDeck(updated);
+}
+
+async function deleteDocsInBatches(colRef: CollectionReference<unknown>, ids: string[]): Promise<void> {
+  const fs = getFs();
+  for (let i = 0; i < ids.length; i += 400) {
+    const batch = writeBatch(fs);
+    for (const id of ids.slice(i, i + 400)) batch.delete(doc(colRef, id));
+    await batch.commit();
+  }
+}
+
+async function deleteCardsWithReviews(cardIds: string[]): Promise<void> {
+  if (cardIds.length === 0) return;
+  const c = cols(uid());
+  const reviewIds: string[] = [];
+  for (let i = 0; i < cardIds.length; i += 10) {
+    const chunk = cardIds.slice(i, i + 10);
+    const reviewSnap = await getDocs(query(c.reviews, where('cardId', 'in', chunk)));
+    reviewIds.push(...reviewSnap.docs.map((d) => d.id));
+  }
+  await deleteDocsInBatches(c.reviews, reviewIds);
+  await deleteDocsInBatches(c.cards, cardIds);
 }
 
 export async function deleteDeck(deckId: string): Promise<void> {
-  const db = await getDb();
-  await db.execute('DELETE FROM decks WHERE id = ?', [Number(deckId)]);
+  const c = cols(uid());
+  const cardSnap = await getDocs(query(c.cards, where('deckId', '==', deckId)));
+  await deleteCardsWithReviews(cardSnap.docs.map((d) => d.id));
+  await deleteDoc(doc(c.decks, deckId));
 }
 
 export async function getDueCards(deckId: string, limit?: number): Promise<Card[]> {
-  const db = await getDb();
-  const today = new Date().toISOString().split('T')[0];
-  let query = 'SELECT * FROM cards WHERE deck_id = ? AND due_date <= ? ORDER BY due_date ASC';
-  const params: any[] = [Number(deckId), today];
-  if (limit) {
-    query += ' LIMIT ?';
-    params.push(limit);
-  }
-  const rows = await db.select<any[]>(query, params);
-  return rows.map(mapRowToCard);
+  const c = cols(uid());
+  const snap = await getDocs(query(c.cards, where('deckId', '==', deckId)));
+  const today = todayStr();
+  const due = snap.docs
+    .map(toCard)
+    .filter((cd) => (cd.dueDate ?? '') <= today)
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+  return limit ? due.slice(0, limit) : due;
 }
 
 export async function getAllCards(): Promise<Card[]> {
-  const db = await getDb();
-  const rows = await db.select<any[]>('SELECT * FROM cards ORDER BY created_at DESC');
-  return rows.map(mapRowToCard);
+  const snap = await getDocs(query(cols(uid()).cards));
+  return sortByDesc(snap.docs.map(toCard), (c) => c.createdAt);
 }
 
-export async function createCard(input: {
+export interface CreateCardInput {
   deckId: string;
   front: string;
   back: string;
@@ -77,258 +245,298 @@ export async function createCard(input: {
   tag: string;
   imagePath?: string;
   codeSnippet?: { code: string; language: string };
-  topology?: any;
-}): Promise<Card> {
-  const db = await getDb();
-  const today = new Date().toISOString().split('T')[0];
-  const rows = await db.select<any[]>(
-    `INSERT INTO cards (deck_id, card_type, front, back, tag, image_path, code_snippet, topology, bookmarked, ease_factor, interval_days, reps, due_date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 2.5, 0, 0, ?, datetime('now'), datetime('now'))
-     RETURNING *`,
-    [
-      Number(input.deckId),
-      input.cardType ?? 'basic',
-      input.front,
-      input.back,
-      input.tag,
-      input.imagePath ?? null,
-      input.codeSnippet ? JSON.stringify(input.codeSnippet) : null,
-      input.topology ? JSON.stringify(input.topology) : null,
-      today,
-    ]
-  );
-  return mapRowToCard(rows[0]);
+  topology?: NetworkTopology;
 }
 
-function buildCardSetClauses(fields: Partial<Card>, params: any[]): string[] {
-  const setParts: string[] = [];
-  if (fields.front !== undefined) { setParts.push('front = ?'); params.push(fields.front); }
-  if (fields.back !== undefined) { setParts.push('back = ?'); params.push(fields.back); }
-  if (fields.tag !== undefined) { setParts.push('tag = ?'); params.push(fields.tag); }
-  if (fields.deckId !== undefined) { setParts.push('deck_id = ?'); params.push(Number(fields.deckId)); }
-  if (fields.imagePath !== undefined) { setParts.push('image_path = ?'); params.push(fields.imagePath); }
-  if (fields.codeSnippet !== undefined) { setParts.push('code_snippet = ?'); params.push(fields.codeSnippet ? JSON.stringify(fields.codeSnippet) : null); }
-  if (fields.topology !== undefined) { setParts.push('topology = ?'); params.push(fields.topology ? JSON.stringify(fields.topology) : null); }
-  if (fields.bookmarked !== undefined) { setParts.push('bookmarked = ?'); params.push(fields.bookmarked ? 1 : 0); }
-  return setParts;
+export async function createCard(input: CreateCardInput): Promise<Card> {
+  const c = cols(uid());
+  const ref = doc(c.cards);
+  const now = nowIso();
+  const card: Card = {
+    id: ref.id,
+    deckId: input.deckId,
+    cardType: input.cardType ?? 'basic',
+    front: input.front,
+    back: input.back,
+    tag: input.tag,
+    imagePath: input.imagePath,
+    codeSnippet: input.codeSnippet,
+    topology: input.topology,
+    bookmarked: false,
+    reps: 0,
+    interval: 0,
+    easeFactor: 2.5,
+    dueDate: todayStr(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  await setDoc(ref, toFirestoreCard(card, 'web'));
+  return card;
 }
+
+const CARD_UPDATABLE: (keyof Card)[] = [
+  'front',
+  'back',
+  'tag',
+  'deckId',
+  'imagePath',
+  'codeSnippet',
+  'topology',
+  'bookmarked',
+  'reps',
+  'interval',
+  'easeFactor',
+  'dueDate',
+  'lastReviewedAt',
+];
 
 export async function updateCard(cardId: string, fields: Partial<Card>): Promise<Card> {
-  const db = await getDb();
-  const params: any[] = [];
-  const setParts = buildCardSetClauses(fields, params);
-  if (setParts.length === 0) throw new Error('No fields to update');
+  const c = cols(uid());
+  const ref = doc(c.cards, cardId);
+  const existing = await getDoc(ref);
+  if (!existing.exists()) throw new Error('Card not found');
 
-  setParts.push('updated_at = datetime(\'now\')');
-  params.push(Number(cardId));
+  const patch: Partial<FirestoreCard> & { updatedAt: string } = { updatedAt: nowIso() };
+  for (const key of CARD_UPDATABLE) {
+    const value = fields[key];
+    if (value !== undefined) Object.assign(patch, { [key]: value });
+  }
+  if (Object.keys(patch).length === 1) throw new Error('No fields to update');
 
-  const rows = await db.select<any[]>(
-    `UPDATE cards SET ${setParts.join(', ')} WHERE id = ? RETURNING *`,
-    params
-  );
-  return mapRowToCard(rows[0]);
+  await updateDoc(ref, patch);
+  const updated = await getDoc(ref);
+  if (!updated.exists()) throw new Error('Card not found');
+  return toCard(updated);
 }
 
 export async function updateCards(ids: string[], fields: Partial<Card>): Promise<Card[]> {
-  if (ids.length === 0) return [];
-  const db = await getDb();
-  const params: any[] = [];
-  const setParts = buildCardSetClauses(fields, params);
-  if (setParts.length === 0) throw new Error('No fields to update');
-
-  setParts.push('updated_at = datetime(\'now\')');
-  const placeholders = ids.map(() => '?').join(', ');
-  ids.forEach(id => params.push(Number(id)));
-
-  const rows = await db.select<any[]>(
-    `UPDATE cards SET ${setParts.join(', ')} WHERE id IN (${placeholders}) RETURNING *`,
-    params
-  );
-  return rows.map(mapRowToCard);
+  const updated: Card[] = [];
+  for (const id of ids) updated.push(await updateCard(id, fields));
+  return updated;
 }
 
 export async function deleteCard(cardId: string): Promise<void> {
-  const db = await getDb();
-  await db.execute('DELETE FROM cards WHERE id = ?', [Number(cardId)]);
+  await deleteCardsWithReviews([cardId]);
 }
 
 export async function deleteCards(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  const db = await getDb();
-  const placeholders = ids.map(() => '?').join(', ');
-  await db.execute(`DELETE FROM cards WHERE id IN (${placeholders})`, ids.map(Number));
+  await deleteCardsWithReviews(ids);
 }
 
 export async function submitReview(cardId: string, rating: 1 | 2 | 3 | 4): Promise<Card> {
-  const db = await getDb();
-  
-  // 1. Fetch current card
-  const cardRows = await db.select<any[]>('SELECT * FROM cards WHERE id = ?', [Number(cardId)]);
-  if (cardRows.length === 0) throw new Error('Card not found');
-  const card = mapRowToCard(cardRows[0]);
-  
-  // 2. Calculate new schedule using SM-2
+  const c = cols(uid());
+  const fs = getFs();
+  const cardRef = doc(c.cards, cardId);
+  const cardSnap = await getDoc(cardRef);
+  if (!cardSnap.exists()) throw new Error('Card not found');
+  const card = toCard(cardSnap);
+
   const { reps, interval, easeFactor } = calculateSM2(rating, card.reps, card.interval, card.easeFactor);
   const dueDate = getLocalDateString(interval);
-  const now = new Date().toISOString();
-  
-  // 3. Update card
-  await db.execute(
-    `UPDATE cards SET reps = ?, interval_days = ?, ease_factor = ?, due_date = ?, last_reviewed_at = ?, updated_at = datetime('now') WHERE id = ?`,
-    [reps, interval, easeFactor, dueDate, now, Number(cardId)]
-  );
-  
-  // 4. Insert review log
-  await db.execute(
-    `INSERT INTO reviews (card_id, rating, reviewed_at, prev_interval, new_interval, prev_ease, new_ease)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [Number(cardId), rating, now, card.interval, interval, card.easeFactor, easeFactor]
-  );
-  
-  // 5. Return updated card
-  const updatedRows = await db.select<any[]>('SELECT * FROM cards WHERE id = ?', [Number(cardId)]);
-  return mapRowToCard(updatedRows[0]);
+  const now = nowIso();
+
+  const reviewRef = doc(c.reviews);
+  const review: ReviewHistory = {
+    id: reviewRef.id,
+    cardId,
+    rating,
+    timestamp: now,
+    previousInterval: card.interval,
+    nextInterval: interval,
+    previousEaseFactor: card.easeFactor,
+    nextEaseFactor: easeFactor,
+  };
+
+  const batch = writeBatch(fs);
+  batch.update(cardRef, { reps, interval, easeFactor, dueDate, lastReviewedAt: now, updatedAt: now });
+  batch.set(reviewRef, toFirestoreReview(review, 'web'));
+  await batch.commit();
+
+  return { ...card, reps, interval, easeFactor, dueDate, lastReviewedAt: now };
 }
 
 export async function getReviewHistory(cardId: string): Promise<ReviewHistory[]> {
-  const db = await getDb();
-  const rows = await db.select<any[]>('SELECT * FROM reviews WHERE card_id = ? ORDER BY reviewed_at DESC', [Number(cardId)]);
-  return rows.map(mapRowToReviewHistory);
+  const snap = await getDocs(query(cols(uid()).reviews, where('cardId', '==', cardId)));
+  return sortByDesc(snap.docs.map(toReview), (r) => r.timestamp);
 }
 
 export async function getAllReviews(): Promise<ReviewHistory[]> {
-  const db = await getDb();
-  const rows = await db.select<any[]>('SELECT * FROM reviews ORDER BY reviewed_at DESC');
-  return rows.map(mapRowToReviewHistory);
+  const snap = await getDocs(query(cols(uid()).reviews));
+  return sortByDesc(snap.docs.map(toReview), (r) => r.timestamp);
+}
+
+export async function addReviewHistory(review: Omit<ReviewHistory, 'id'>): Promise<ReviewHistory> {
+  const c = cols(uid());
+  const ref = doc(c.reviews);
+  const full: ReviewHistory = { id: ref.id, ...review };
+  await setDoc(ref, toFirestoreReview(full, 'web'));
+  return full;
 }
 
 export async function exportDeckToJson(deckId: string): Promise<string> {
-  const db = await getDb();
-  const deck = await db.select<any[]>('SELECT * FROM decks WHERE id = ?', [Number(deckId)]);
-  const cards = await db.select<any[]>('SELECT * FROM cards WHERE deck_id = ?', [Number(deckId)]);
-  const reviews = await db.select<any[]>('SELECT r.* FROM reviews r JOIN cards c ON r.card_id = c.id WHERE c.deck_id = ?', [Number(deckId)]);
-  
-  return JSON.stringify({ deck: deck[0], cards, reviews }, null, 2);
+  const c = cols(uid());
+  const deckSnap = await getDoc(doc(c.decks, deckId));
+  if (!deckSnap.exists()) throw new Error('Deck not found');
+
+  const cardSnap = await getDocs(query(c.cards, where('deckId', '==', deckId)));
+  const cards = cardSnap.docs.map(toCard);
+
+  const reviews: ReviewHistory[] = [];
+  for (let i = 0; i < cards.length; i += 10) {
+    const chunk = cards.slice(i, i + 10).map((cd) => cd.id);
+    const reviewSnap = await getDocs(query(c.reviews, where('cardId', 'in', chunk)));
+    reviews.push(...reviewSnap.docs.map(toReview));
+  }
+
+  return JSON.stringify({ deck: toDeck(deckSnap), cards, reviews }, null, 2);
+}
+
+function parseJsonField<T>(value: unknown): T | undefined {
+  if (typeof value !== 'string') return value as T | undefined;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+interface ImportJsonCard {
+  id?: string | number;
+  front?: string;
+  back?: string;
+  tag?: string;
+  cardType?: 'basic' | 'cloze';
+  imagePath?: string;
+  codeSnippet?: string | { code: string; language: string };
+  topology?: string | NetworkTopology;
+  bookmarked?: boolean | number;
+  reps?: number;
+  interval?: number;
+  interval_days?: number;
+  easeFactor?: number;
+  ease_factor?: number;
+  dueDate?: string;
+  due_date?: string;
+  lastReviewedAt?: string;
+}
+
+interface ImportJsonReview {
+  cardId?: string | number;
+  card_id?: string | number;
+  rating?: number;
+  timestamp?: string;
+  reviewed_at?: string;
+  previousInterval?: number;
+  prev_interval?: number;
+  nextInterval?: number;
+  new_interval?: number;
+  previousEaseFactor?: number;
+  prev_ease?: number;
+  nextEaseFactor?: number;
+  new_ease?: number;
+}
+
+interface ImportJsonDeck {
+  deck?: { name?: string; description?: string; studyMaterial?: string };
+  cards?: ImportJsonCard[];
+  reviews?: ImportJsonReview[];
 }
 
 export async function importDeckFromJson(json: string): Promise<void> {
-  const db = await getDb();
-  const data = JSON.parse(json);
-  
-  // Create deck
-  const deckRows = await db.select<any[]>(
-    'INSERT INTO decks (name, description, created_at) VALUES (?, ?, ?) RETURNING id',
-    [data.deck.name + ' (imported)', data.deck.description, new Date().toISOString()]
+  const data = JSON.parse(json) as ImportJsonDeck;
+  const deck = await createDeck(
+    (data.deck?.name ?? 'Imported deck') + ' (imported)',
+    data.deck?.description ?? ''
   );
-  const newDeckId = deckRows[0].id;
-  
-  // Import cards
-  for (const card of data.cards) {
-    await db.execute(
-      `INSERT INTO cards (deck_id, card_type, front, back, tag, image_path, code_snippet, topology, ease_factor, interval_days, reps, due_date, last_reviewed_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [
-        newDeckId,
-        card.card_type ?? 'basic',
-        card.front,
-        card.back,
-        card.tag,
-        card.image_path,
-        card.code_snippet ? JSON.stringify(card.code_snippet) : null,
-        card.topology ? JSON.stringify(card.topology) : null,
-        card.ease_factor ?? 2.5,
-        card.interval_days ?? 0,
-        card.reps ?? 0,
-        card.due_date,
-        card.last_reviewed_at,
-      ]
-    );
+  if (data.deck?.studyMaterial) {
+    await updateDeckStudyMaterial(deck.id, data.deck.studyMaterial);
   }
-  
-  // Import reviews
-  for (const review of data.reviews) {
-    await db.execute(
-      `INSERT INTO reviews (card_id, rating, reviewed_at, prev_interval, new_interval, prev_ease, new_ease)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [review.card_id, review.rating, review.timestamp, review.previousInterval, review.nextInterval, review.previousEaseFactor, review.nextEaseFactor]
-    );
+
+  const oldToNew = new Map<string, string>();
+  for (const c of data.cards ?? []) {
+    if (!c || (c.front === undefined && c.back === undefined)) continue;
+    const created = await createCard({
+      deckId: deck.id,
+      front: c.front ?? '',
+      back: c.back ?? '',
+      tag: c.tag ?? '',
+      cardType: c.cardType ?? 'basic',
+      imagePath: c.imagePath,
+      codeSnippet: parseJsonField<{ code: string; language: string }>(c.codeSnippet),
+      topology: parseJsonField<Card['topology']>(c.topology),
+    });
+    oldToNew.set(String(c.id), created.id);
+    const fields: Partial<Card> = {
+      bookmarked: c.bookmarked === true || c.bookmarked === 1,
+      reps: c.reps ?? 0,
+      interval: c.interval ?? c.interval_days ?? 0,
+      easeFactor: c.easeFactor ?? c.ease_factor ?? 2.5,
+      dueDate: c.dueDate ?? c.due_date ?? todayStr(),
+      lastReviewedAt: c.lastReviewedAt ?? undefined,
+    };
+    await updateCard(created.id, fields);
   }
-}
 
-// ─── Sync Functions ────────────────────────────────────────────────────────────
-
-export async function syncDeck(deck: Deck): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    `INSERT INTO decks (id, name, description, study_material, created_at)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, study_material=excluded.study_material`,
-    [Number(deck.id), deck.name, deck.description ?? null, deck.studyMaterial ?? null, deck.createdAt]
-  );
-}
-
-export async function syncCard(card: Card): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    `INSERT INTO cards (id, deck_id, card_type, front, back, tag, image_path, code_snippet, topology, bookmarked, ease_factor, interval_days, reps, due_date, last_reviewed_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET deck_id=excluded.deck_id, card_type=excluded.card_type, front=excluded.front, back=excluded.back, tag=excluded.tag, image_path=excluded.image_path, code_snippet=excluded.code_snippet, topology=excluded.topology, bookmarked=excluded.bookmarked, ease_factor=excluded.ease_factor, interval_days=excluded.interval_days, reps=excluded.reps, due_date=excluded.due_date, last_reviewed_at=excluded.last_reviewed_at, updated_at=excluded.updated_at`,
-    [
-      Number(card.id),
-      Number(card.deckId),
-      card.cardType ?? 'basic',
-      card.front,
-      card.back,
-      card.tag,
-      card.imagePath ?? null,
-      card.codeSnippet ? JSON.stringify(card.codeSnippet) : null,
-      card.topology ? JSON.stringify(card.topology) : null,
-      card.bookmarked ? 1 : 0,
-      card.easeFactor,
-      card.interval,
-      card.reps,
-      card.dueDate,
-      card.lastReviewedAt ?? null,
-      card.createdAt,
-      card.updatedAt
-    ]
-  );
-}
-
-export async function syncReview(review: ReviewHistory): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    `INSERT INTO reviews (id, card_id, rating, reviewed_at, prev_interval, new_interval, prev_ease, new_ease)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO NOTHING`,
-    [
-      Number(review.id),
-      Number(review.cardId),
-      review.rating,
-      review.timestamp,
-      review.previousInterval,
-      review.nextInterval,
-      review.previousEaseFactor,
-      review.nextEaseFactor
-    ]
-  );
+  for (const r of data.reviews ?? []) {
+    const newCardId = oldToNew.get(String(r.cardId ?? r.card_id));
+    if (!newCardId || r.rating == null) continue;
+    await addReviewHistory({
+      cardId: newCardId,
+      rating: r.rating,
+      timestamp: r.timestamp ?? r.reviewed_at ?? nowIso(),
+      previousInterval: r.previousInterval ?? r.prev_interval ?? 0,
+      nextInterval: r.nextInterval ?? r.new_interval ?? 0,
+      previousEaseFactor: r.previousEaseFactor ?? r.prev_ease ?? 2.5,
+      nextEaseFactor: r.nextEaseFactor ?? r.new_ease ?? 2.5,
+    });
+  }
 }
 
 export async function getSetting(key: string): Promise<string | null> {
-  const db = await getDb();
-  const rows = await db.select<{value: string}[]>('SELECT value FROM settings WHERE key = ?', [key]);
-  return rows.length > 0 ? rows[0].value : null;
+  const snap = await getDoc(doc(cols(uid()).settings, key));
+  if (!snap.exists()) return null;
+  const value = snap.data().value;
+  return typeof value === 'string' ? value : value == null ? null : JSON.stringify(value);
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    [key, value]
-  );
+  await setDoc(doc(cols(uid()).settings, key), { value, updatedAt: nowIso() });
 }
 
-// ─── AI Session History ───────────────────────────────────────────────────────
+export async function getAllSettings(): Promise<Array<{ key: string; value: string }>> {
+  const snap = await getDocs(query(cols(uid()).settings));
+  return snap.docs.map((d) => ({ key: d.id, value: d.data().value ?? '' }));
+}
+
+export async function clearAllUserData(): Promise<void> {
+  const c = cols(uid());
+  const collections: CollectionReference<unknown>[] = [c.reviews, c.cards, c.decks];
+  for (const colRef of collections) {
+    const snap = await getDocs(colRef);
+    await deleteDocsInBatches(colRef, snap.docs.map((d) => d.id));
+  }
+}
+
+export function subscribeToUserData(
+  userUid: string,
+  onChange: () => void
+): Unsubscribe {
+  const c = cols(userUid);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const handler = () => {
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      onChange();
+    }, 500);
+  };
+  const colRefs: Query<unknown>[] = [c.decks, c.cards, c.reviews];
+  const unsubs = colRefs.map((colRef) => onSnapshot(colRef, handler));
+  return () => {
+    unsubs.forEach((u) => u());
+    if (timer) clearTimeout(timer);
+  };
+}
 
 export interface AiSession {
   id: string;
@@ -342,20 +550,6 @@ export interface AiSession {
   createdAt: string;
 }
 
-function mapRowToAiSession(row: any): AiSession {
-  return {
-    id: String(row.id),
-    sessionType: row.session_type,
-    inputText: row.input_text ?? '',
-    outputText: row.output_text ?? undefined,
-    cardsJson: row.cards_json ?? undefined,
-    deckId: row.deck_id ? String(row.deck_id) : undefined,
-    deckName: row.deck_name ?? undefined,
-    cardCount: row.card_count ?? 0,
-    createdAt: row.created_at,
-  };
-}
-
 export async function saveAiSession(session: {
   sessionType: 'clean' | 'generate';
   inputText: string;
@@ -365,67 +559,31 @@ export async function saveAiSession(session: {
   deckName?: string;
   cardCount?: number;
 }): Promise<AiSession> {
-  const db = await getDb();
-  const rows = await db.select<any[]>(
-    `INSERT INTO ai_sessions (session_type, input_text, output_text, cards_json, deck_id, deck_name, card_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now')) RETURNING *`,
-    [
-      session.sessionType,
-      session.inputText,
-      session.outputText ?? null,
-      session.cardsJson ?? null,
-      session.deckId ? Number(session.deckId) : null,
-      session.deckName ?? null,
-      session.cardCount ?? 0,
-    ]
-  );
-  return mapRowToAiSession(rows[0]);
+  const c = cols(uid());
+  const ref = doc(c.aiSessions);
+  const full: AiSession = {
+    id: ref.id,
+    sessionType: session.sessionType,
+    inputText: session.inputText,
+    outputText: session.outputText,
+    cardsJson: session.cardsJson,
+    deckId: session.deckId,
+    deckName: session.deckName,
+    cardCount: session.cardCount ?? 0,
+    createdAt: nowIso(),
+  };
+  await setDoc(ref, full);
+  return full;
 }
 
 export async function listAiSessions(): Promise<AiSession[]> {
-  const db = await getDb();
-  const rows = await db.select<any[]>(
-    'SELECT * FROM ai_sessions ORDER BY created_at DESC LIMIT 100'
-  );
-  return rows.map(mapRowToAiSession);
+  const snap = await getDocs(query(cols(uid()).aiSessions));
+  return sortByDesc(
+    snap.docs.map((d) => ({ ...d.data(), id: d.id })),
+    (s) => s.createdAt
+  ).slice(0, 100);
 }
 
 export async function deleteAiSession(sessionId: string): Promise<void> {
-  const db = await getDb();
-  await db.execute('DELETE FROM ai_sessions WHERE id = ?', [Number(sessionId)]);
-}
-
-function mapRowToCard(row: any): Card {
-  return {
-    id: String(row.id),
-    deckId: String(row.deck_id),
-    cardType: row.card_type,
-    front: row.front,
-    back: row.back,
-    tag: row.tag,
-    imagePath: row.image_path,
-    codeSnippet: row.code_snippet ? JSON.parse(row.code_snippet) : undefined,
-    topology: row.topology ? JSON.parse(row.topology) : undefined,
-    bookmarked: row.bookmarked === 1 || row.bookmarked === true,
-    reps: row.reps ?? row.repetitions ?? 0,
-    interval: row.interval_days,
-    easeFactor: row.ease_factor,
-    dueDate: row.due_date,
-    lastReviewedAt: row.last_reviewed_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function mapRowToReviewHistory(row: any): ReviewHistory {
-  return {
-    id: String(row.id),
-    cardId: String(row.card_id),
-    rating: row.rating,
-    timestamp: row.reviewed_at,
-    previousInterval: row.prev_interval,
-    nextInterval: row.new_interval,
-    previousEaseFactor: row.prev_ease,
-    nextEaseFactor: row.new_ease,
-  };
+  await deleteDoc(doc(cols(uid()).aiSessions, sessionId));
 }

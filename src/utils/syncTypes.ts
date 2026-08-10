@@ -2,6 +2,8 @@
 // Collection: users/{uid}/decks/{deckId}
 // Collection: users/{uid}/cards/{cardId}
 // Collection: users/{uid}/reviews/{reviewId}
+// Collection: users/{uid}/settings/{key}
+// Collection: users/{uid}/ai_sessions/{sessionId}
 
 import { Deck, Card, ReviewHistory } from '../types';
 
@@ -45,6 +47,8 @@ export const SYNC_COLLECTIONS = {
   decks: (uid: string) => `users/${uid}/decks`,
   cards: (uid: string) => `users/${uid}/cards`,
   reviews: (uid: string) => `users/${uid}/reviews`,
+  settings: (uid: string) => `users/${uid}/settings`,
+  aiSessions: (uid: string) => `users/${uid}/ai_sessions`,
   // Metadata for sync state lives as fields on the user doc itself.
   // Paths must contain an EVEN number of segments to be a valid Firestore
   // document reference; decks/cards/reviews are subcollections under it.
