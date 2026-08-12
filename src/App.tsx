@@ -21,8 +21,9 @@ import { GroupPickerDialog } from './components/GroupPickerDialog';
 import { AIGeneratorScreen } from './components/AIGeneratorScreen';
 import { LibraryScreen } from './components/LibraryScreen';
 import logoSrc from '/logo.png';
-import { LayoutGrid, Sparkles, X, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save, ArrowLeft, Loader2 } from 'lucide-react';
+import { LayoutGrid, Sparkles, Wand2, LogOut, Search, Globe, Users, BookOpen, Activity, Database, Zap, AlertTriangle, Edit3, Save, ArrowLeft, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotifyProvider, useNotify } from './context/NotifyContext';
 import { AuthScreen } from './components/AuthScreen';
 import { ManageDataMenu, type SyncStatus } from './components/ManageDataMenu';
 import { listDecks, createDeck, deleteDeck, getAllCards, createCard, updateCard, updateCards, deleteCard, deleteCards, submitReview, getAllReviews, setSetting, setDbUser, clearAllUserData, subscribeToUserData } from './db/queries';
@@ -36,6 +37,7 @@ const mergeUnique = <T extends { id: string }>(prev: T[], item: T): T[] =>
 
 function AppInner() {
   const { user, loading: authLoading, logout } = useAuth();
+  const { error: notifyError, success: notifySuccess } = useNotify();
 
   const [decks, setDecks] = useState<Deck[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
@@ -43,8 +45,6 @@ function AppInner() {
   const [streakDays, setStreakDays] = useState<number>(0);
   const [_userXp, setUserXp] = useState<number>(0);
 
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [syncStatus] = useState<SyncStatus>('synced');
   const [activeTab, setActiveTab] = useState<'decks' | 'study' | 'review' | 'editor' | 'stats' | 'ai' | 'quiz' | 'weak' | 'search' | 'community' | 'library' | 'groups' | 'group-detail'>('decks');
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
@@ -92,7 +92,7 @@ function AppInner() {
         unsub = subscribeToUserData(uid, loadAllData);
       } catch (err) {
         console.error('Failed to initialize database:', err);
-        setError(err instanceof Error ? err.message : 'Failed to initialize database');
+        notifyError(err instanceof Error ? err.message : 'Failed to initialize database');
       }
     }
     void init();
@@ -203,20 +203,6 @@ function AppInner() {
     return streak;
   }
 
-  // Auto-dismiss errors after 5 seconds
-  useEffect(() => {
-    if (!error) return;
-    const timer = setTimeout(() => setError(null), 5000);
-    return () => clearTimeout(timer);
-  }, [error]);
-
-  // Auto-dismiss success notices after 4 seconds
-  useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(null), 4000);
-    return () => clearTimeout(timer);
-  }, [notice]);
-
   const handleReviewCard = async (cardId: string, rating: 1 | 2 | 3 | 4) => {
     try {
       const updatedCard = await submitReview(cardId, rating);
@@ -242,7 +228,7 @@ function AppInner() {
       });
     } catch (err) {
       console.error('Failed to submit review:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save review');
+      notifyError(err instanceof Error ? err.message : 'Failed to save review');
     }
   };
 
@@ -250,9 +236,10 @@ function AppInner() {
     try {
       const newDeck = await createDeck(name, description);
       setDecks(prev => mergeUnique(prev, newDeck));
+      notifySuccess('Deck created');
     } catch (err) {
       console.error('Failed to create deck:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create deck');
+      notifyError(err instanceof Error ? err.message : 'Failed to create deck');
     }
   };
 
@@ -265,9 +252,10 @@ function AppInner() {
         setSelectedDeckId(null);
         setActiveTab('decks');
       }
+      notifySuccess('Deck deleted');
     } catch (err) {
       console.error('Failed to delete deck:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete deck');
+      notifyError(err instanceof Error ? err.message : 'Failed to delete deck');
     }
   };
 
@@ -276,9 +264,10 @@ function AppInner() {
       const { updateDeckName } = await import('./db/queries');
       const updated = await updateDeckName(deckId, name);
       setDecks(prev => prev.map(d => d.id === deckId ? updated : d));
+      notifySuccess('Deck renamed');
     } catch (err) {
       console.error('Failed to rename deck:', err);
-      setError(err instanceof Error ? err.message : 'Failed to rename deck');
+      notifyError(err instanceof Error ? err.message : 'Failed to rename deck');
     }
   };
 
@@ -288,7 +277,7 @@ function AppInner() {
       setCards(prev => mergeUnique(prev, newCard));
     } catch (err) {
       console.error('Failed to add card:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add card');
+      notifyError(err instanceof Error ? err.message : 'Failed to add card');
     }
   };
 
@@ -298,7 +287,7 @@ function AppInner() {
       setCards(prev => prev.map(c => c.id === cardId ? updatedCard : c));
     } catch (err) {
       console.error('Failed to update card:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update card');
+      notifyError(err instanceof Error ? err.message : 'Failed to update card');
     }
   };
 
@@ -308,7 +297,7 @@ function AppInner() {
       setCards(prev => prev.filter(c => c.id !== cardId));
     } catch (err) {
       console.error('Failed to delete card:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete card');
+      notifyError(err instanceof Error ? err.message : 'Failed to delete card');
     }
   };
 
@@ -318,7 +307,7 @@ function AppInner() {
       setCards(prev => prev.filter(c => !ids.includes(c.id)));
     } catch (err) {
       console.error('Failed to delete cards:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete cards');
+      notifyError(err instanceof Error ? err.message : 'Failed to delete cards');
     }
   };
 
@@ -329,7 +318,7 @@ function AppInner() {
       setCards(prev => prev.map(c => map.get(c.id) ?? c));
     } catch (err) {
       console.error('Failed to update cards:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update cards');
+      notifyError(err instanceof Error ? err.message : 'Failed to update cards');
     }
   };
 
@@ -356,7 +345,7 @@ function AppInner() {
       return newDeck.id;
     } catch (err) {
       console.error('Failed to import deck:', err);
-      setError(err instanceof Error ? err.message : 'Failed to import deck');
+      notifyError(err instanceof Error ? err.message : 'Failed to import deck');
       return null;
     }
   };
@@ -381,7 +370,7 @@ function AppInner() {
       setSelectedGroupId(null);
       setActiveTab('groups');
     } else {
-      setError(result.error || 'Failed to delete group');
+      notifyError(result.error || 'Failed to delete group');
     }
   };
 
@@ -403,7 +392,7 @@ function AppInner() {
         setActiveTab('decks');
       } catch (err) {
         console.error('Failed to reset data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to reset data');
+        notifyError(err instanceof Error ? err.message : 'Failed to reset data');
       }
     }
   };
@@ -411,11 +400,10 @@ function AppInner() {
   const handleBackupNow = async () => {
     try {
       await createBackup('manual');
-      setNotice('Backup created');
-      setError(null);
+      notifySuccess('Backup created');
     } catch (err) {
       console.error('Backup failed:', err);
-      setError(err instanceof Error ? err.message : 'Backup failed');
+      notifyError(err instanceof Error ? err.message : 'Backup failed');
     }
   };
 
@@ -424,14 +412,13 @@ function AppInner() {
       const result = await restoreLatestBackup();
       if (result) {
         await loadAllData();
-        setNotice(`Restored ${result.decks} decks, ${result.cards} cards, ${result.reviews} reviews`);
-        setError(null);
+        notifySuccess(`Restored ${result.decks} decks, ${result.cards} cards, ${result.reviews} reviews`);
       } else {
-        setError('No backup found to restore');
+        notifyError('No backup found to restore');
       }
     } catch (err) {
       console.error('Restore failed:', err);
-      setError(err instanceof Error ? err.message : 'Restore failed');
+      notifyError(err instanceof Error ? err.message : 'Restore failed');
     }
   };
 
@@ -469,24 +456,6 @@ function AppInner() {
   return (
     <div className="min-h-screen font-sans transition-colors duration-200 bg-[#0F1115] text-[#E0E0E0] selection:bg-[#E3B341]/30 selection:text-white">
       <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02] pointer-events-none z-0"></div>
-
-      {error && (
-        <div className="fixed top-4 right-4 z-50 flex items-center space-x-2 px-4 py-2 bg-[#F85149]/10 border border-[#F85149]/30 rounded text-xs font-mono text-[#F85149] shadow-lg animate-fade-in max-w-sm">
-          <span className="flex-grow">{error}</span>
-          <button onClick={() => setError(null)} className="text-[#F85149] hover:text-white cursor-pointer">
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      {notice && (
-        <div className="fixed top-4 right-4 z-50 flex items-center space-x-2 px-4 py-2 bg-[#3FB950]/10 border border-[#3FB950]/30 rounded text-xs font-mono text-[#3FB950] shadow-lg animate-fade-in max-w-sm">
-          <span className="flex-grow">{notice}</span>
-          <button onClick={() => setNotice(null)} className="text-[#3FB950] hover:text-white cursor-pointer">
-            <X size={14} />
-          </button>
-        </div>
-      )}
 
       <div className="relative z-10 max-w-6xl mx-auto px-3 md:px-6 lg:px-8 py-2 md:py-3 flex flex-col min-h-screen pb-20 md:pb-3">
         <header className="pb-2 mb-3 border-b border-[#2D333B]">
@@ -556,7 +525,7 @@ function AppInner() {
                     <button
                       key={item.key}
                       onClick={item.onClick}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
                         isActive
                           ? 'text-white bg-[#0F1115] shadow-sm'
                           : 'text-[#8B949E] hover:text-white'
@@ -638,7 +607,7 @@ function AppInner() {
                     <button
                       key={item.key}
                       onClick={item.onClick}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium tracking-wide transition-all cursor-pointer whitespace-nowrap ${
                         isActive
                           ? 'text-white bg-[#0F1115] shadow-sm border border-[#2D333B]'
                           : 'text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-transparent'
@@ -656,7 +625,7 @@ function AppInner() {
                   {!studyEditing ? (
                     <button
                       onClick={() => setStudyEditing(true)}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-[#30363D]"
+                      className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#8B949E] hover:text-white hover:bg-[#21262D] border border-[#30363D]"
                     >
                       <Edit3 size={13} />
                       <span>Edit Material</span>
@@ -664,7 +633,7 @@ function AppInner() {
                   ) : (
                     <button
                       onClick={() => studyScreenRef.current?.save()}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115]"
+                      className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap bg-[#3FB950] hover:bg-[#4ade80] text-[#0F1115]"
                     >
                       <Save size={13} />
                       <span>Save</span>
@@ -672,7 +641,7 @@ function AppInner() {
                   )}
                   <button
                     onClick={() => setActiveTab('review')}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#0F1115]"
+                    className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold tracking-wide transition-all cursor-pointer whitespace-nowrap text-[#0F1115]"
                     style={{
                       background: 'linear-gradient(135deg, #E3B341 0%, #F0C24F 100%)',
                       boxShadow: '0 0 12px rgba(227,179,65,.35)',
@@ -753,7 +722,7 @@ function AppInner() {
                       <button
                         key={item.key}
                         onClick={item.onClick}
-                        className={`flex items-center space-x-2 w-full px-3 py-2 text-left text-[11px] font-mono transition-colors cursor-pointer ${
+                        className={`flex items-center space-x-2 w-full px-3 py-2 text-left text-xs font-mono transition-colors cursor-pointer ${
                           isActive
                             ? 'text-[#E3B341] bg-[#E3B341]/10'
                             : 'text-[#8B949E] hover:text-white hover:bg-[#21262D]'
@@ -998,7 +967,7 @@ function AppInner() {
         )}
 
         <footer className="mt-8 sm:mt-12 pt-4 border-t border-[#2D333B] text-center">
-          <p className="text-[11px] font-mono text-[#8B949E]">
+          <p className="text-xs font-mono text-[#8B949E]">
             Sm-2 spaced repetition engine &mdash; data synced securely to your account
           </p>
         </footer>
@@ -1010,7 +979,9 @@ function AppInner() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppInner />
+      <NotifyProvider>
+        <AppInner />
+      </NotifyProvider>
     </AuthProvider>
   );
 }

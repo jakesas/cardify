@@ -2,6 +2,7 @@ import { useState, useEffect, type FC } from 'react';
 import { listAiSessions, deleteAiSession, type AiSession } from '../db/queries';
 import type { GeneratedCard } from '../utils/groq';
 import { History, Trash2, RotateCcw, Brain, ChevronDown, ChevronUp, X as XIcon, Maximize2 } from 'lucide-react';
+import { useNotify } from '../context/NotifyContext';
 
 interface AIHistoryPanelProps {
   onRestoreGenerate: (inputText: string, cards: GeneratedCard[], title: string) => void;
@@ -12,18 +13,24 @@ export const AIHistoryPanel: FC<AIHistoryPanelProps> = ({
   onRestoreGenerate,
   refreshTrigger,
 }) => {
+  const { error: notifyError, success: notifySuccess } = useNotify();
   const [sessions, setSessions] = useState<AiSession[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    listAiSessions().then(setSessions).catch(console.error);
+    listAiSessions().then(setSessions).catch(() => notifyError('Failed to load AI history'));
   }, [refreshTrigger]);
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await deleteAiSession(id);
-    setSessions(prev => prev.filter(s => s.id !== id));
+    try {
+      await deleteAiSession(id);
+      setSessions(prev => prev.filter(s => s.id !== id));
+      notifySuccess('Session deleted');
+    } catch {
+      notifyError('Failed to delete session');
+    }
   };
 
   const handleRestore = (session: AiSession) => {

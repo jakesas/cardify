@@ -7,6 +7,7 @@ import { chunkText } from '../utils/chunker';
 import { generateStudyMaterial } from '../utils/generateStudyMaterial';
 import { FileText, Brain, Save, Loader2, AlertCircle, Upload, Check, Trash2, File, Clock } from 'lucide-react';
 import { AIHistoryPanel } from './AIHistoryPanel';
+import { useNotify } from '../context/NotifyContext';
 
 interface AIGeneratorScreenProps {
   decks: Deck[];
@@ -15,6 +16,7 @@ interface AIGeneratorScreenProps {
 }
 
 export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard, onUpdateDeck }) => {
+  const { error: notifyError, success: notifySuccess } = useNotify();
   const [step, setStep] = useState<'input' | 'review'>('input');
   const [sourceText, setSourceText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -186,6 +188,9 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
           await processChunk(chunkIdx + 1, chunksArr);
         } else {
           await finishGeneration();
+          if (accumulatedCardsRef.current.length > 0) {
+            notifySuccess(`Generated ${accumulatedCardsRef.current.length} cards`);
+          }
         }
         return;
       } catch (err: any) {
@@ -243,12 +248,16 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
     setSaveResults(null);
     setIsProcessing(false);
 
-    await saveAiSession({
-      sessionType: 'generate',
-      inputText: sourceText.trim(),
-      cardsJson: JSON.stringify(cards),
-      cardCount: cards.length,
-    });
+    try {
+      await saveAiSession({
+        sessionType: 'generate',
+        inputText: sourceText.trim(),
+        cardsJson: JSON.stringify(cards),
+        cardCount: cards.length,
+      });
+    } catch {
+      notifyError('Failed to save AI session history');
+    }
     setHistoryRefresh(n => n + 1);
   };
 
@@ -280,6 +289,8 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       return;
     }
     setSaveResults({ success: 0, failed: 0 });
+    let savedCount = 0;
+    let failedCount = 0;
     for (const card of generatedCards) {
       try {
         await onAddCard({
@@ -290,8 +301,10 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
           tag: card.tag,
           codeSnippet: card.codeSnippet,
         });
+        savedCount++;
         setSaveResults(prev => prev ? { ...prev, success: prev.success + 1 } : prev);
       } catch {
+        failedCount++;
         setSaveResults(prev => prev ? { ...prev, failed: prev.failed + 1 } : prev);
       }
     }
@@ -303,7 +316,7 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
         const structured = generateStudyMaterial(generatedCards);
         await onUpdateDeck(selectedDeckId, structured);
       } catch (e) {
-        console.error('Failed to generate study material:', e);
+        notifyError('Failed to generate study material');
       }
     }
     // Save a generate session with deck info
@@ -319,7 +332,13 @@ export const AIGeneratorScreen: FC<AIGeneratorScreenProps> = ({ decks, onAddCard
       });
       setHistoryRefresh(n => n + 1);
     } catch (e) {
-      console.error('Failed to save generate session:', e);
+      notifyError('Failed to save AI session history');
+    }
+    // Feedback from local counters — saveResults state lags behind this loop
+    if (failedCount > 0) {
+      notifyError(`${failedCount} of ${savedCount + failedCount} cards failed to save`);
+    } else if (savedCount > 0) {
+      notifySuccess(`${savedCount} cards added to ${targetDeck?.name || 'deck'}`);
     }
     // Clear the draft now that cards are saved
     try { localStorage.removeItem(AI_DRAFT_KEY); } catch { /* ignore */ }

@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { generateStudyMaterialFromCards } from '../utils/generateStudyMaterial';
 import { createGroqClient, getAiConfig, structureStudyMaterial } from '../utils/groq';
+import { useNotify } from '../context/NotifyContext';
 
 export interface StudyMaterialScreenHandle {
   save: () => void;
@@ -122,6 +123,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
   onEditingChange,
   onUpdateDeck,
 }, ref) {
+  const { error: notifyError, success: notifySuccess } = useNotify();
   const [material, setMaterial] = useState(deck.studyMaterial || '');
   const savingRef = useRef(false);
   const [currentPage, setCurrentPage] = useState(0);
@@ -267,9 +269,9 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
       await onUpdateDeck(deck.id, material);
       onEditingChange(false);
       setCurrentPage(0);
+      notifySuccess('Study material saved');
     } catch (err) {
-      console.error('Failed to save study material', err);
-      alert('Failed to save study material.');
+      notifyError('Failed to save study material');
     } finally {
       savingRef.current = false;
     }

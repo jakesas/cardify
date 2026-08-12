@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, type FC } from 'react';
 import { Deck } from '../types';
+import { useNotify } from '../context/NotifyContext';
 import {
   listLibraryResources,
   getLibraryResource,
@@ -82,6 +83,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   onImportToDeck,
   onOpenAiGeneratorWithText,
 }) => {
+  const { error: notifyError } = useNotify();
   const [resources, setResources] = useState<LibraryResourceMeta[]>([]);
   const [useFirestore, setUseFirestore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -242,7 +244,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
 
     const aiConfig = getAiConfig();
     if (!aiConfig) {
-      alert('AI features are not configured.');
+      notifyError('AI features are not configured.');
       return;
     }
 
@@ -267,7 +269,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       setReconstructedPages(prev => ({ ...prev, [pageKey]: result }));
       saveReconstructed(pageKey, result);
     } catch (err: any) {
-      alert('AI Reconstruct failed: ' + (err?.message || 'Unknown error'));
+      notifyError('AI Reconstruct failed: ' + (err?.message || 'Unknown error'));
       setShowReconstructed(false);
     } finally {
       setIsReconstructing(false);
@@ -279,7 +281,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
   const handleReconstructAll = async () => {
     if (!activeResource || isReconstructingAll || isReconstructing) return;
     const aiConfig = getAiConfig();
-    if (!aiConfig) { alert('AI features are not configured.'); return; }
+    if (!aiConfig) { notifyError('AI features are not configured.'); return; }
 
     const pages = readerPages.length > 0 ? readerPages : [activeResource.content];
     const total = pages.length;
@@ -371,7 +373,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       const pages = formattedContent ? Math.ceil(formattedContent.length / 3000) + 1 : 1;
       preloadCachedReconstructions(meta.id, pages);
     } else {
-      alert(res.error || 'Failed to load document content');
+      notifyError(res.error || 'Failed to load document content');
     }
     setLoadingContent(false);
   };
@@ -390,7 +392,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
     if (!activeResource) return;
     const aiConfig = getAiConfig();
     if (!aiConfig) {
-      alert("AI features are not configured.");
+      notifyError("AI features are not configured.");
       return;
     }
     
@@ -537,7 +539,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
         setImportSuccessMsg('');
       }, 1500);
     } catch (err: any) {
-      alert('Failed to import into deck: ' + err?.message);
+      notifyError('Failed to import into deck: ' + err?.message);
     } finally {
       setIsImporting(false);
     }
@@ -551,7 +553,7 @@ export const LibraryScreen: FC<LibraryScreenProps> = ({
       if (activeResource?.id === id) setActiveResource(null);
       fetchLibrary();
     } else {
-      alert(res.error || 'Failed to delete resource');
+      notifyError(res.error || 'Failed to delete resource');
     }
   };
 
