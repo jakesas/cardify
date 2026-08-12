@@ -198,7 +198,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
 
   const pages = useMemo(() => splitIntoPages(material), [material]);
   const totalPages = pages.length;
-  const contentRef = useRef<HTMLDivElement>(null);
+  const readerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const estimatedMinutes = useMemo(() => readingTime(material), [material]);
   const wordCount = useMemo(() => material.trim() ? material.trim().split(/\s+/).length : 0, [material]);
@@ -244,7 +244,9 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
     setTimeout(() => {
       setCurrentPage(nextIdx);
       setIsAnimating(false);
-      contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Scroll the card's own scroll area, not the page: page-level scrolling
+      // collapses the mobile URL bar, which resizes the card height mid-animation.
+      readerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, 220);
   }, [isAnimating, currentPage, totalPages]);
 
@@ -416,7 +418,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
         }
       `}</style>
 
-      <div className="animate-fade-in max-w-3xl w-full mx-auto flex flex-col space-y-3 h-[calc(100dvh-170px)] md:h-[calc(100vh-130px)]" ref={contentRef}>
+      <div className="animate-fade-in max-w-3xl w-full mx-auto flex flex-col space-y-3 h-[calc(100svh-170px)] md:h-[calc(100svh-130px)]">
 
 
         {/* ── Progress bar (reading progress) ── */}
@@ -623,7 +625,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
                 onChange={(e) => setMaterial(e.target.value)}
                 placeholder={`## CCNA-1 — History of the Internet\n\n### 1. ARPANET (1969)\n\n- Created by **ARPA** (US research agency)\n- Used **NCP** (Network Control Program)\n\n---\n\n### 2. TCP/IP (1970s)\n\n> 💡 **TCP** = Safe delivery 📦  |  **IP** = Finds the address 📍`}
                 className="flex-grow w-full bg-[#0D1117] p-5 text-[#E0E0E0] text-sm font-mono focus:outline-none resize-none leading-relaxed"
-                style={{ minHeight: '50vh', borderTop: 'none' }}
+                style={{ minHeight: '240px', borderTop: 'none' }}
               />
 
               {aiError && (
@@ -642,7 +644,7 @@ export const StudyMaterialScreen = forwardRef<StudyMaterialScreenHandle, StudyMa
             /* ── Read Mode ── */
             <>
               {/* Page content */}
-              <div className="flex-1 px-8 pt-8 pb-6 overflow-y-auto">
+              <div ref={readerRef} className="flex-1 px-8 pt-8 pb-6 overflow-y-auto">
                 <div
                   key={currentPage}
                   className={`prose-study ${isAnimating
