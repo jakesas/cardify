@@ -1,4 +1,4 @@
-import { useState, useEffect, type FC } from 'react';
+import { useState, useEffect, useMemo, type FC } from 'react';
 import { createPortal } from 'react-dom';
 import { Deck, Card } from '../types';
 import { BookOpen, AlertCircle, Plus, Trash2, Edit3, ArrowRight, Zap, Share2, Users, Download, Printer, Flame, MoreHorizontal } from 'lucide-react';
@@ -40,6 +40,22 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
 
   const todayStr = getLocalDateString();
 
+  // Per-deck stats computed ONCE per cards/today change (O(cards)) instead of
+  // re-filtering the card list for every deck on every render (O(decks × cards)).
+  const deckStats = useMemo(() => {
+    const stats = new Map<string, { total: number; due: number }>();
+    for (const card of cards) {
+      const entry = stats.get(card.deckId);
+      if (entry) {
+        entry.total += 1;
+        if (isDue(card.dueDate, todayStr)) entry.due += 1;
+      } else {
+        stats.set(card.deckId, { total: 1, due: isDue(card.dueDate, todayStr) ? 1 : 0 });
+      }
+    }
+    return stats;
+  }, [cards, todayStr]);
+
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
@@ -48,7 +64,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
 
   const sendStudyReminder = () => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      const dueCount = decks.reduce((sum, d) => sum + getDeckStats(d.id).due, 0);
+      const dueCount = decks.reduce((sum, d) => sum + (deckStats.get(d.id)?.due ?? 0), 0);
       new Notification('Cardify Study Reminder', {
         body: dueCount > 0
           ? `You have ${dueCount} card${dueCount > 1 ? 's' : ''} due for review!`
@@ -56,16 +72,6 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
         icon: '/logo.png',
       });
     }
-  };
-
-  // Helper to compute stats for each deck
-  const getDeckStats = (deckId: string) => {
-    const deckCards = cards.filter((c) => c.deckId === deckId);
-    const dueCount = deckCards.filter((c) => isDue(c.dueDate, todayStr)).length;
-    return {
-      total: deckCards.length,
-      due: dueCount,
-    };
   };
 
   const handleRename = (e: React.FormEvent) => {
@@ -90,7 +96,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
   };
 
   // Find if any deck has cards due to recommend studying
-  const recommendedDeck = decks.find((d) => getDeckStats(d.id).due > 0);
+  const recommendedDeck = decks.find((d) => (deckStats.get(d.id)?.due ?? 0) > 0);
 
   const handleExportCsv = (deckId: string, deckName: string) => {
     const deckCards = cards.filter((c) => c.deckId === deckId);
@@ -173,7 +179,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
               {decks.length > 0 && (
                 <button
                   onClick={() => onSelectDeck((recommendedDeck ?? decks[0]).id, 'study')}
-                  className="flex-1 sm:flex-none sm:w-72 inline-flex items-center justify-center gap-1 sm:gap-2 h-10 px-2 sm:px-5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] sm:text-sm font-bold tracking-wide rounded-lg shadow-[0_0_24px_rgba(227,179,65,0.25)] transition-all cursor-pointer min-w-0"
+                  className="flex-1 sm:flex-none sm:w-72 inline-flex items-center justify-center gap-1 sm:gap-2 h-10 px-2 sm:px-5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-xs sm:text-sm font-bold tracking-wide rounded-lg shadow-[0_0_24px_rgba(227,179,65,0.25)] transition-all cursor-pointer min-w-0"
                 >
                   <span className="truncate">Study recommended deck</span>
                   <ArrowRight size={16} className="flex-shrink-0 hidden sm:block" />
@@ -183,7 +189,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 h-10 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider rounded-lg border border-[#30363D] transition-colors cursor-pointer flex-shrink-0"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 h-10 bg-[#21262D] hover:bg-[#30363D] text-white text-xs font-semibold tracking-wider rounded-lg border border-[#30363D] transition-colors cursor-pointer flex-shrink-0"
               >
                 <Plus size={12} />
                 <span className="hidden sm:inline">Create deck</span>
@@ -210,20 +216,20 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
             <BookOpen size={32} className="text-[#8B949E]" />
             <div className="text-center space-y-1">
               <p className="text-white text-xs font-semibold uppercase font-mono">No decks found</p>
-              <p className="text-[11px] text-[#8B949E] max-w-sm">
+              <p className="text-xs text-[#8B949E] max-w-sm">
                 Create a custom deck or load the pre-populated sample study cards to start reviewing.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-3 py-1.5 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-[11px] font-semibold tracking-wider uppercase rounded transition-colors"
+                className="inline-flex items-center justify-center px-4 h-10 bg-[#E3B341] hover:bg-[#F0C24F] text-[#0F1115] text-xs font-semibold tracking-wider uppercase rounded-lg transition-colors"
               >
                 Create New Deck
               </button>
               <button
                 onClick={onResetToDefaults}
-                className="px-3 py-1.5 bg-[#21262D] hover:bg-[#30363D] text-white text-[11px] font-semibold tracking-wider uppercase rounded border border-[#30363D] transition-colors"
+                className="inline-flex items-center justify-center px-4 h-10 bg-[#21262D] hover:bg-[#30363D] text-white text-xs font-semibold tracking-wider uppercase rounded-lg border border-[#30363D] transition-colors"
               >
                 Load Default Sample Cards
               </button>
@@ -232,7 +238,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {decks.map((deck, index) => {
-              const { total, due } = getDeckStats(deck.id);
+              const { total, due } = deckStats.get(deck.id) ?? { total: 0, due: 0 };
               const showOverflow = overflowMenuDeckId === deck.id;
 
               return (
@@ -268,24 +274,21 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                           {due > 0 && <span className="absolute inline-flex h-full w-full rounded-full bg-[#E3B341] opacity-60 animate-ping"></span>}
                           <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${due > 0 ? 'bg-[#E3B341]' : 'bg-[#8B949E]'}`}></span>
                         </span>
-                        <span className="text-[7px] font-mono text-[#484F58] font-bold tracking-wider flex-shrink-0">
-                          #{deck.id}
-                        </span>
                         <h3 className="text-sm font-bold text-white group-hover:text-[#E3B341] transition-colors font-mono truncate">
                           {deck.name}
                         </h3>
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-[9px] font-mono text-[#484F58] whitespace-nowrap">
+                        <span className="text-[11px] font-mono text-[#484F58] whitespace-nowrap">
                           <span className="text-white font-bold">{total}</span>
                         </span>
                         {due > 0 ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/25 shadow-[0_0_8px_rgba(227,179,65,0.08)]">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#E3B341]/10 text-[#E3B341] border border-[#E3B341]/25 shadow-[0_0_8px_rgba(227,179,65,0.08)]">
                             {due} due
                           </span>
                         ) : total > 0 ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#3FB950]/10 text-[#3FB950] border border-[#3FB950]/20">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#3FB950]/10 text-[#3FB950] border border-[#3FB950]/20">
                             Up to date
                           </span>
                         ) : null}
@@ -293,7 +296,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                     </div>
 
                     {deck.description && (
-                      <p className="text-[11px] text-[#8B949E] leading-relaxed line-clamp-2">
+                      <p className="text-xs text-[#8B949E] leading-relaxed line-clamp-2">
                         {deck.description}
                       </p>
                     )}
@@ -301,8 +304,8 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
                     {total > 0 && (
                       <div className="pt-1.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[8px] font-mono text-[#484F58] font-bold tracking-wider uppercase">Mastery</span>
-                          <span className={`text-[9px] font-mono font-bold ${due > 0 ? 'text-[#E3B341]' : 'text-[#3FB950]'}`}>
+                          <span className="text-[10px] font-mono text-[#484F58] font-bold tracking-wider uppercase">Mastery</span>
+                          <span className={`text-[11px] font-mono font-bold ${due > 0 ? 'text-[#E3B341]' : 'text-[#3FB950]'}`}>
                             {Math.round(((total - due) / total) * 100)}%
                           </span>
                         </div>
@@ -352,7 +355,7 @@ export const DeckListScreen: FC<DeckListScreenProps> = ({
 // Position menu via fixed coords so it's never clipped by
 // the card's overflow-hidden or the scroll container.
 const rect = e.currentTarget.getBoundingClientRect();
-const MENU_H = 210;
+const MENU_H = 230;
 const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
                             const fitsAbove = rect.top >= MENU_H;
                             const top = fitsBelow || !fitsAbove ? rect.bottom + 4 : rect.top - MENU_H;
@@ -378,42 +381,42 @@ const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
                             >
                               <button
                                 onClick={() => { onSelectDeck(deck.id, 'quiz'); setOverflowMenuDeckId(null); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-xs font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
                               >
                                 <Zap size={13} className="text-[#E3B341]" />
                                 <span>Quiz</span>
                               </button>
                               <button
                                 onClick={() => { setRenameValue(deck.name); setRenameDeckId(deck.id); setOverflowMenuDeckId(null); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-xs font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
                               >
                                 <Edit3 size={13} className="text-[#58A6FF]" />
                                 <span>Rename</span>
                               </button>
                               <button
                                 onClick={() => { onShareDeck(deck.id); setOverflowMenuDeckId(null); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-xs font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
                               >
                                 <Share2 size={13} className="text-[#58A6FF]" />
                                 <span>Share link</span>
                               </button>
                               <button
                                 onClick={() => { onShareToGroup(deck.id); setOverflowMenuDeckId(null); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-xs font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
                               >
                                 <Users size={13} className="text-[#58A6FF]" />
                                 <span>Share to group</span>
                               </button>
                               <button
                                 onClick={() => { handleExportCsv(deck.id, deck.name); setOverflowMenuDeckId(null); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-xs font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
                               >
                                 <Download size={13} className="text-[#3FB950]" />
                                 <span>Export CSV</span>
                               </button>
                               <button
                                 onClick={() => { handleExportPdf(deck.id, deck.name); setOverflowMenuDeckId(null); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
+                                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-xs font-mono text-[#8B949E] hover:text-white hover:bg-[#21262D] transition-colors cursor-pointer"
                               >
                                 <Printer size={13} className="text-[#58A6FF]" />
                                 <span>Print study sheet</span>
@@ -428,7 +431,7 @@ const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
                     {/* Main Study CTA */}
                     <button
                       onClick={() => onSelectDeck(deck.id, due > 0 ? 'study' : 'editor')}
-                      className={`inline-flex items-center gap-1.5 px-3 h-[36px] rounded text-[10px] font-bold tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                      className={`inline-flex items-center gap-1.5 px-3 h-[36px] rounded text-xs font-bold tracking-wider transition-all cursor-pointer whitespace-nowrap ${
                         due > 0
                           ? 'bg-gradient-to-b from-[#F0C24F] to-[#E3B341] text-[#0F1115] hover:from-[#F7D270] hover:to-[#F0C24F] shadow-[0_2px_12px_rgba(227,179,65,0.35)] hover:shadow-[0_4px_20px_rgba(227,179,65,0.5)] hover:-translate-y-px'
                           : total === 0
@@ -458,7 +461,7 @@ const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
           <div className="w-full max-w-md rounded border border-[#2D333B] bg-[#161B22] p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#2D333B] pb-2">
               <h3 className="text-xs font-bold text-[#8B949E] font-mono uppercase tracking-wider">Rename Deck</h3>
-              <button onClick={() => setRenameDeckId(null)} className="text-[#8B949E] hover:text-white text-[10px] font-mono p-1 hover:bg-[#21262D] rounded">CLOSE</button>
+              <button onClick={() => setRenameDeckId(null)} className="text-[#8B949E] hover:text-white text-xs font-mono p-1 hover:bg-[#21262D] rounded">CLOSE</button>
             </div>
             <form onSubmit={handleRename} className="space-y-4">
               <div className="space-y-1.5">
@@ -487,7 +490,7 @@ const fitsBelow = window.innerHeight - rect.bottom >= MENU_H;
                   setShowCreateModal(false);
                   setErrorMsg('');
                 }}
-                className="text-[#8B949E] hover:text-white text-[10px] font-mono p-1 hover:bg-[#21262D] rounded"
+                className="text-[#8B949E] hover:text-white text-xs font-mono p-1 hover:bg-[#21262D] rounded"
               >
                 CLOSE
               </button>
