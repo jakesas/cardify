@@ -24,6 +24,7 @@ import {
   toFirestoreDeck,
   toFirestoreCard,
   toFirestoreReview,
+  serialize,
   SYNC_COLLECTIONS,
   FirestoreDeck,
   FirestoreCard,
@@ -572,7 +573,9 @@ export async function saveAiSession(session: {
     cardCount: session.cardCount ?? 0,
     createdAt: nowIso(),
   };
-  await setDoc(ref, full);
+  // Optional fields (outputText/cardsJson/deckId/deckName) may be undefined;
+    // Firestore rejects undefined field values, so strip them before writing.
+    await setDoc(ref, serialize(full));
   return full;
 }
 
