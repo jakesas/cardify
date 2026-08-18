@@ -255,7 +255,7 @@ export async function generateCardsFromText(
   const maxOutput = Math.max(1000, Math.min(2000, 2000));
 
   const requestBody = {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     messages: [
       { role: 'system' as const, content: SYSTEM_PROMPT(subjectTags, targetCount) },
       { role: 'user' as const, content: `Generate flashcards from this study material:\n\n${safeText}` },
@@ -343,7 +343,7 @@ export async function explainConcept(
   onChunk?: (text: string) => void
 ): Promise<string> {
   const body = {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     messages: [
       {
         role: 'system' as const,
@@ -387,7 +387,7 @@ export async function generateQuizFromText(
   const safeText = truncateToTokenBudget(text, 2000);
 
   const requestBody = {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     messages: [
       { 
         role: 'system' as const, 
@@ -455,7 +455,7 @@ export async function structureStudyMaterial(
   const safeText = truncateToTokenBudget(rawText, 2600);
 
   const body = {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     messages: [
       {
         role: 'system' as const,
@@ -511,7 +511,7 @@ export async function summarizeDocument(
   const safeText = truncateToTokenBudget(content, 2200);
 
   const requestBody = {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     messages: [
       {
         role: 'system' as const,
@@ -582,7 +582,7 @@ export async function askLibrarian(
     .join('\n');
 
   const body = {
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     messages: [
       {
         role: 'system' as const,
