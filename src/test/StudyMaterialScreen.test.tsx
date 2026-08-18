@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { StudyMaterialScreen } from '../components/StudyMaterialScreen';
 import { NotifyProvider } from '../context/NotifyContext';
 import type { Deck } from '../types';
